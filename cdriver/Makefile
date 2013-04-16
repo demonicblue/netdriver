@@ -2,6 +2,6 @@ P=netdriver
 OBJECTS=
 CFLAGS = -g -Wall -03
 LDLIBS=
-CC=C99
+CC=c99
 
 $(P): $(OBJECTS)
