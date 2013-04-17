@@ -1,13 +1,12 @@
-#include <stdlib.h>
-#include <stdio.h>
-#include <sys/socket.h>
-#include <sys/types.h>
-#include <sys/ioctl.h>
-#include <err.h>
-#include <errno.h>
-#include <string.h>
-#include <fcntl.h>
-#include <unistd.h>
+#include <stdlib.h> // malloc()
+#include <stdio.h> // fprintf()
+#include <sys/socket.h> // socketpair()
+#include <sys/ioctl.h> // ioctl()
+#include <err.h> // err()
+#include <errno.h> // err
+#include <string.h> // strerror()
+#include <fcntl.h> // open()
+#include <unistd.h> // close(), fork()
 
 #include "nbd.h"
 
