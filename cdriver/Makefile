@@ -1,7 +1,22 @@
-P=netdriver
-OBJECTS=
-CFLAGS = -g -Wall -O3
-LDLIBS=
-CC=c99
+CC=c99 			#Compiler 
+CFLAGS=-Wall -O3	#Flags	
 
-$(P): $(OBJECTS)
+ODIR=obj/%.o #Directory for .o-files
+BDIR=bin
+
+PROG = netdriver #Program-name
+
+_OBJS = netdriver.c #Files to compile
+OBJS = $(patsubst %,$(ODIR)%,$(_OBJS))
+
+$(ODIR): 
+	$(CC) -c -o $@ $< $(CFLAGS)
+	
+$(PROG): $(_OBJS)
+	$(CC) -o $@ $^ $(CFLAGS)
+
+.PHONY: clean
+
+clean:
+	rm -f $(ODIR)/*.o $(BDIR)
+	
