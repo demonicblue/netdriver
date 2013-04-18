@@ -1,3 +1,10 @@
 # mac and windows temp files
 .DS_Store
 Thumbs.db
+
+/cdriver/bin/*
+!/cdriber/bin/
+
+/cdriver/obj/*
+!/cdriber/obj/
+
