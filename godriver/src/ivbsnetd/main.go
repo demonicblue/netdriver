@@ -1,9 +1,9 @@
 package main
 
 /*
-#include "nbd.h"
+//#include "nbd.h"
+//#include <linux/types.h>
 #include <sys/ioctl.h>
-
 // Gets ioctl numbers for nbd commands
 static int nbd_request(int cmd) {
 	return _IO(0xab, cmd);
@@ -17,6 +17,7 @@ import(
 	"fmt"
 	"flag"
 	"syscall"
+	"os"
 )
 
 // Capitalized, hush hush
@@ -42,13 +43,27 @@ const (
 
 const DATASIZE = 1024*1024*50
 
+func nbd_request(request int) int {
+	return int(C.nbd_request(C.int(request)))
+}
+
+func ioctl(a1, a2, a3 int) error {
+	_, _, err := syscall.Syscall(syscall.SYS_IOCTL, uintptr(a1), uintptr(a2), uintptr(a3))
+	return err
+}
+
 func client(socket_fd, nbd_fd int) {
-	//syscall.Syscall(syscall.SYS_IOCTL, )
-	//C.nbd_set_sock(nbd_fd, socket_fd)
 	
-	foo := int(C.nbd_request(NBD_SET_SOCK))
+	if err := ioctl(nbd_fd, nbd_request(NBD_SET_SOCK), socket_fd); err != nil {
+		fmt.Println(err)
+	}
 	
-	fmt.Printf("Test: %d\n",foo)
+	if err := ioctl(nbd_fd, nbd_request(NBD_DO_IT), 0); err != nil {
+		fmt.Println(err)
+	}
+	
+	ioctl(nbd_fd, nbd_request(NBD_CLEAR_QUE), 0)
+	ioctl(nbd_fd, nbd_request(NBD_CLEAR_SOCK), 0)
 	
 }
 
@@ -68,11 +83,13 @@ func main() {
 	
 	nbd_fd, err := syscall.Open(nbd_path, syscall.O_RDWR, 0666)
 	if(err != nil) {
-		fmt.Printf("Tried opening %s with error:", nbd_path)
+		fmt.Printf("Tried opening %s with error: ", nbd_path)
 		fmt.Println(err)
+		fmt.Println("Exiting..")
+		os.Exit(0)
 	}
 	
-	client(fd[CLIENT_SOCKET], nbd_fd)
+	go client(fd[CLIENT_SOCKET], nbd_fd)
 	
 	syscall.Close(fd[0])
 	syscall.Close(fd[1])
