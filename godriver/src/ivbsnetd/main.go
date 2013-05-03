@@ -1,24 +1,12 @@
 package main
 
-/*
-//#include "nbd.h"
-//#include <linux/types.h>
-#include <sys/ioctl.h>
-// Gets ioctl numbers for nbd commands
-static int nbd_request(int cmd) {
-	return _IO(0xab, cmd);
-}
-
-*/
-import "C"
-
-
 import(
 	"fmt"
 	"flag"
 	"syscall"
 	"os"
-	"unsafe"
+	"time"
+	"ioctl"
 )
 
 // Capitalized, hush hush
@@ -57,6 +45,10 @@ const (
 
 const DATASIZE = 1024*1024*50
 
+const (
+	NETD_DISC	= iota
+)
+
 type nbd_request struct {
 	magic uint32
 	cmd uint32
@@ -71,51 +63,62 @@ type nbd_reply struct {
 	handle [8]byte
 }
 
+type ivbs_packet struct {
+	session_id [32]byte
+	op uint32
+	status int8
+	data_length uint32
+	sequence uint32
+}
+
+// Switch byte-order
 func ntohl(v uint32) uint32 {
 	return uint32(byte(v >> 24)) | uint32(byte(v >> 16))<<8 | uint32(byte(v >> 8))<<16 | uint32(byte(v))<<24
 }
 
-func request(request int) int {
-	return int(C.nbd_request(C.int(request)))
-}
-
-func ioctl(a1, a2, a3 int) error {
-	_, _, err := syscall.Syscall(syscall.SYS_IOCTL, uintptr(a1), uintptr(a2), uintptr(a3))
-	return err
-}
-
-func client(socket_fd, nbd_fd int) {
+// Client thread
+func client(nbd_fd int, socket_fd int) {
 	
-	if err := ioctl(nbd_fd, request(NBD_SET_SOCK), socket_fd); err != nil {
-		fmt.Println(err)
+	if err := ioctl.Ioctl(nbd_fd, NBD_SET_SOCK, socket_fd); err != nil {
+		fmt.Printf("Could not set socket: %s\n", err)
 	}
 	
-	if err := ioctl(nbd_fd, request(NBD_DO_IT), 0); err != nil {
-		fmt.Println(err)
+	if err := ioctl.Ioctl(nbd_fd, NBD_DO_IT, 0); err != nil {
+		fmt.Print("Error starting client: %s\n", err)
 	}
 	
-	ioctl(nbd_fd, request(NBD_CLEAR_QUE), 0)
-	ioctl(nbd_fd, request(NBD_CLEAR_SOCK), 0)
+	fmt.Println("Disconnecting..")
+	
+	ioctl.Ioctl(nbd_fd, NBD_CLEAR_QUE, 0)
+	ioctl.Ioctl(nbd_fd, NBD_CLEAR_SOCK, 0)
 	
 }
 
-func server(socket_fd int) {
+// Server thread
+func server(socket_fd ,nbd_fd int, quit chan int) {
 	request := new(nbd_request)
 	reply := new(nbd_reply)
 	_ = reply
 	_ = request
-	b := make([]byte, unsafe.Sizeof(request))
-	
-	//fmt.Println(unsafe.Sizeof(*request))
+	//b := make([]byte, unsafe.Sizeof(request)) //TODO: Set size of slice with constant instead of using the unsafe packet
 	
 	for {
-		_, _ = syscall.Read(socket_fd, b)
+		/*_, _ = syscall.Read(socket_fd, b)
 		//copy(reply.handle, request.handle)
 		
 		len := ntohl(request.len)
 		_ = len
 		
-		break
+		break*/
+		select {
+		case <-quit:
+			fmt.Println("Trying to disconnect..")
+			ioctl.Ioctl(nbd_fd, NBD_DISCONNECT, 0)
+			return
+		default:
+			fmt.Println("Waiting..")
+			time.Sleep(1000 * time.Millisecond)
+		}
 	}
 }
 
@@ -125,30 +128,42 @@ func main() {
 	
 	var nbd_path string
 	
-	flag.StringVar(&nbd_path, "n", "DevicePath", "Path to NBD device")
+	// Setup flags
+	flag.StringVar(&nbd_path, "n", "nil", "Path to NBD device")
 	flag.Parse()
 	
+	// Inter-process, client-server communication
 	fd, err := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_STREAM, 0)
 	if(err != nil) {
-		fmt.Println(err)
+		fmt.Printf("socketpair() failed with error: %s", err)
 	}
 	
 	nbd_fd, err := syscall.Open(nbd_path, syscall.O_RDWR, 0666)
 	if(err != nil) {
-		fmt.Printf("Tried opening %s with error: ", nbd_path)
-		fmt.Println(err)
-		fmt.Println("Exiting..")
+		fmt.Printf("Tried opening %s with error: %s\nExiting..\n", nbd_path, err)
 		os.Exit(0)
 	}
 	
-	ioctl(nbd_fd, request(NBD_SET_SIZE), DATASIZE)
-	ioctl(nbd_fd, request(NBD_CLEAR_SOCK), 0)
+	if err:= ioctl.Ioctl(nbd_fd, NBD_SET_SIZE, DATASIZE); err != nil {
+		fmt.Printf("Error setting size: %s", err)
+	}
+	if err:= ioctl.Ioctl(nbd_fd, NBD_CLEAR_SOCK, 0); err != nil {
+		fmt.Print("Error clearing socket: %s", err)
+	}
+	
+	//quitCh := make(chan int)
+	
+	if err := ioctl.Ioctl(nbd_fd, NBD_SET_SOCK, fd[CLIENT_SOCKET]); err != nil {
+		fmt.Printf("Could not set socket: %s\n", err)
+	}
 	
 	// Dat thread
-	go server(nbd_fd)
-	go client(fd[CLIENT_SOCKET], nbd_fd)
+	//go client(nbd_fd, fd[CLIENT_SOCKET])
+	//go server(nbd_fd, fd[SERVER_SOCKET], quitCh)
 	
+	time.Sleep(5 * time.Second)
 	
+	//quitCh <- 0
 	
 	syscall.Close(fd[0])
 	syscall.Close(fd[1])
