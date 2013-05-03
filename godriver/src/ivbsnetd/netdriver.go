@@ -16,7 +16,10 @@ import (
 	"syscall"
 	"unsafe"
 	"os"
+	"ioctl"
+	"time"
 )
+
 
 
 /*
@@ -78,21 +81,6 @@ const (
 )
 
 /*
- * NBD Request-function, recieves request and returns an integer.
- */
-func nbdrequest(request int) int {
-	return int(C.nbd_request(C.int(request)))
-}
-
-/*
- * IOCTL-function, help-function needed to communicates with hardware. (Input/Output Control)
- */
-func ioctl(fd uintptr, request, argp int) error {
-	_, _, errorp := syscall.Syscall(syscall.SYS_IOCTL, fd, uintptr(request), uintptr(argp))
-	return os.NewSyscallError("ioctl", errorp)
-}
-
-/*
  * NTOHL-function
  */
 func ntohl(v uint32) uint32 {
@@ -102,53 +90,48 @@ func ntohl(v uint32) uint32 {
 /*
  * NBD Client-function
  */
-func nbdclient(socket_fd int, nbd_fd uintptr) {
-	if err := ioctl(nbd_fd, nbdrequest(NBD_SET_SOCK), socket_fd); err != nil {
-		fmt.Println(err, "ioctl 1")
+func nbdclient(socket_fd, nbd_fd int) {
+	if err := ioctl.Ioctl(nbd_fd, NBD_SET_SOCK, socket_fd); err != nil {
+		fmt.Println("IOCTL_SET_SOCK had an error:", err)
+	}
+	if err := ioctl.Ioctl(nbd_fd, NBD_DO_IT, 0); err != nil {
+		fmt.Println("IOCTL_DO_IT had an error:", err)
 	}
 
-	if err := ioctl(nbd_fd, nbdrequest(NBD_DO_IT), 0); err != nil {
-		fmt.Println(err, "ioctl 2")
-	}
-
-	ioctl(nbd_fd, nbdrequest(NBD_CLEAR_QUE), 0)
-	ioctl(nbd_fd, nbdrequest(NBD_CLEAR_SOCK), 0)
+	ioctl.Ioctl(nbd_fd, NBD_CLEAR_QUE, 0)
+	ioctl.Ioctl(nbd_fd, NBD_CLEAR_SOCK, 0)
 }
 
 /*
  * Main-function.
  */
 func main() {
-	var fd [2]int
 	request := nbd_request{}
 	reply := nbd_reply{}
 	//void *data, *chunk
 
 	//data := make([]byte, DATASIZE)
 	var dev_path string
-	flag.StringVar(&dev_path, "n", "DevicePath", "Path to NBD device.")
+	flag.StringVar(&dev_path, "n", "/dev/nbd0", "Path to NBD device.")
 	flag.Parse()
 
 	fd, err := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_STREAM, 0)
 
-	fmt.Print(err)
-
-	//nbd_fd, err := syscall.Open(dev_path, syscall.O_RDWR, 0666)
-	nbd_fdPtr, err := os.Open(dev_path)
-	nbd_fd := nbd_fdPtr.Fd()
-
+	nbd_fd, err := syscall.Open(dev_path, syscall.O_RDWR, 0666)
 	if err != nil {
-		fmt.Print(err, "\n")
+		fmt.Println(err)
 	}
 
-	if err := ioctl(nbd_fd, nbdrequest(NBD_SET_SIZE), DATASIZE); err != nil {
-		fmt.Println(err, "ioctl 3")
+	if err := ioctl.Ioctl(nbd_fd, NBD_SET_SIZE, DATASIZE); err != nil {
+		fmt.Println("IOCTL_SET_SIZE had an error:", err)
 	}
-	if err := ioctl(nbd_fd, nbdrequest(NBD_CLEAR_SOCK), 0); err != nil {
-		fmt.Println(err, "ioctl 4")
+
+	if err := ioctl.Ioctl(nbd_fd, NBD_CLEAR_SOCK, 0); err != nil {
+		fmt.Println("IOCTL_CLEAR_SOCK had an error:", err)
 	}
 
 	go nbdclient (fd[CLIENT_SOCK], nbd_fd)
+	
 	socket_fd := fd[SERVER_SOCK]
 
 	reply.Magic = ntohl(NBD_REPLY_MAGIC)
@@ -159,7 +142,7 @@ func main() {
 		bytes_read, err := syscall.Read(socket_fd, p)
 
 		if err != nil {
-			println("Error occurred whilst reading!", bytes_read)
+			fmt.Println("Error occurred whilst reading!", bytes_read)
 		}
 
 		//memcpy(reply.handle, request.handle, cap(request.handle))
@@ -192,7 +175,8 @@ func main() {
 			case NBD_CMD_TRIM:
 
 			default:
-				println("Unexpected NBD command: %d", rq)
+				time.Sleep(1000)
+				fmt.Println("Unexpected NBD command: %d", rq)
 		}
 	}
 }
