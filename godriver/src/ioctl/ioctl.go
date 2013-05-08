@@ -2,7 +2,6 @@ package ioctl
 
 import (
 	"syscall"
-	"os"
 )
 
 /* ioctl command encoding: 32 bits total, command in lower 16 bits,
@@ -15,17 +14,8 @@ import (
  * NOTE: This limits the max parameter size to 16kB -1 !
  */
 func Call(fd uintptr, name int, data uintptr) syscall.Errno {
-	_, _, err := syscall.RawSyscall(syscall.SYS_IOCTL, fd, uintptr(name), data)
+	_, _, err := syscall.Syscall(syscall.SYS_IOCTL, fd, uintptr(name), data)
 	return err
-}
-
-func Ioctl(fd, req, data int) error {
-	errno := Call(uintptr(fd), int(IO(0xab, int32(req))), uintptr(data))
-	if errno != 0 {
-		err := os.NewSyscallError("SYS_IOCTL", errno)
-		return err
-	}
-	return nil
 }
 
 /*
