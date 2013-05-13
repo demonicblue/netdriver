@@ -17,6 +17,7 @@ const (
 	SERVER_SOCKET = 0
 	CLIENT_SOCKET = 1
 )
+var kanal = make(chan int)
 
 const DATASIZE = 1024*1024*50
 
@@ -30,7 +31,6 @@ func ntohl(v uint32) uint32 {
 }
 
 func HttpCheckHealthHandler(w http.ResponseWriter, r *http.Request) {
-	//kod som hämtar respStatus...
 	resp, err := http.Get("http://reddit.com/r/golang.json") //insert ivbs-server ip
 	if err != nil{
 		fmt.Println(err)
@@ -38,11 +38,16 @@ func HttpCheckHealthHandler(w http.ResponseWriter, r *http.Request) {
 	if resp.StatusCode != http.StatusOK{
 		fmt.Println(resp.Status)
 	}
-	fmt.Fprintf(w, resp.Status)
+	fmt.Fprintf(w, "<h1>Health Status</h1>\nStatus: %s", resp.Status)
 }
 
 func HttpRootHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "<h1>Blargh</h1>\n")
+	fmt.Fprintf(w, "<h1>HTTPRootHandler</h1>\n")
+}
+
+func HttpQuitServer(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprint(w, "<h1>The HTTP-Server is shutting down...</h1>")
+	kanal <- 1
 }
 
 // Client thread
@@ -128,7 +133,7 @@ func disconnect(nbd_path string, nbd_fd uintptr) {
 func main() {
 	data := make([]uint8, DATASIZE)
 	_ = data[0] // TODO Remove
-	
+
 	var nbd_path string
 	
 	// Setup flags
@@ -181,10 +186,16 @@ func main() {
 	fmt.Println("HTTP-Server starting...")
 	
 	http.HandleFunc("/", HttpRootHandler)
-	go http.ListenAndServe("localhost:1234", nil) 
-
 	http.HandleFunc("/check-health", HttpCheckHealthHandler)
+	http.HandleFunc("/quit", HttpQuitServer)
 
+	go http.ListenAndServe("localhost:1234", nil)
+
+	fmt.Println("HTTP-Server is up and running!")
+
+	<-kanal
+
+	fmt.Println("HTTP-Server shutting down...")
 
 	time.Sleep(5 * time.Second)
 	
@@ -200,7 +211,5 @@ func main() {
 	//syscall.Close(nbd_fd)
 	
 	fmt.Println("Ending main")
-	
-	
 }
 
