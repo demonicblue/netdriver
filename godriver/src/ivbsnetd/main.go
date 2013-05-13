@@ -67,12 +67,22 @@ func server(socket_fd int, quitCh chan int, nbd_path string, nbd_file *os.File) 
 	
 	fmt.Println("Setting up connection to 127.0.0.1:3033")
 	// Set up connection to IVBS
-	conn, err := net.Dial("tcp", "127.0.0.1")
+	conn, err := net.Dial("tcp", "127.0.0.1:3033")
 	if err != nil {
-		fmt.Println("Connection failed")
+		fmt.Printf("Connection failed: %g\n", err)
+		return
 	}
 	
-	_ = conn
+	ivbs_slice := make([]byte, 45)
+	conn.Read(ivbs_slice)
+	ivbs_reply := ivbs.IvbsSliceToStruct(ivbs_slice)
+	
+	if ivbs_reply.Op != ivbs.OP_GREETING {
+		fmt.Println("Error, received: %d", ivbs_reply.Op)
+		os.Exit(0)
+	}
+	
+	fmt.Println("Received greeting from IVBS, logging in..")
 	
 	packet := new(ivbs.IvbsPacket)
 	packet.Op = ivbs.OP_LOGIN
@@ -84,6 +94,8 @@ func server(socket_fd int, quitCh chan int, nbd_path string, nbd_file *os.File) 
 	
 	dataSlice := ivbs.IvbsStructToSlice(packet)
 	dataSlice = append(dataSlice, ivbs.LoginStructToSlice(loginPacket)...)
+	
+	conn.Write(dataSlice)
 	
 	
 	
