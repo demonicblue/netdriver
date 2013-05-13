@@ -9,6 +9,7 @@ import(
 	"nbd"
 	"net"
 	"ivbs"
+	"net/http"
 )
 
 // Capitalized, hush hush
@@ -26,6 +27,22 @@ const (
 // Switch byte-order
 func ntohl(v uint32) uint32 {
 	return uint32(byte(v >> 24)) | uint32(byte(v >> 16))<<8 | uint32(byte(v >> 8))<<16 | uint32(byte(v))<<24
+}
+
+func HttpCheckHealthHandler(w http.ResponseWriter, r *http.Request) {
+	//kod som hämtar respStatus...
+	resp, err := http.Get("http://reddit.com/r/golang.json") //insert ivbs-server ip
+	if err != nil{
+		fmt.Println(err)
+	}
+	if resp.StatusCode != http.StatusOK{
+		fmt.Println(resp.Status)
+	}
+	fmt.Fprintf(w, resp.Status)
+}
+
+func HttpRootHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprintf(w, "<h1>Blargh</h1>\n")
 }
 
 // Client thread
@@ -161,6 +178,14 @@ func main() {
 	//fmt.Println("Server..")
 	//go server(nbd_fd, fd[SERVER_SOCKET], quitCh, nbd_path)
 	
+	fmt.Println("HTTP-Server starting...")
+	
+	http.HandleFunc("/", HttpRootHandler)
+	go http.ListenAndServe("localhost:1234", nil) 
+
+	http.HandleFunc("/check-health", HttpCheckHealthHandler)
+
+
 	time.Sleep(5 * time.Second)
 	
 	//quitCh <- 0
