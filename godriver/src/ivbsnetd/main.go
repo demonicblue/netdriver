@@ -55,12 +55,37 @@ func client(nbd_fd uintptr, socket_fd int) {
 }
 
 // Server thread
-func server(nbd_fd uintptr, socket_fd int, quitCh chan int, nbd_path string) {
+func server(socket_fd int, quitCh chan int, nbd_path string, nbd_file *os.File) {
 	request := new(nbd.Nbd_request)
 	reply := new(nbd.Nbd_reply)
 	_ = reply
 	_ = request
-	//b := make([]byte, unsafe.Sizeof(request)) //TODO: Set size of slice with constant instead of using the unsafe packet
+	
+	nbd_fd := nbd_file.Fd()
+	defer nbd_file.Close()
+	
+	
+	fmt.Println("Setting up connection to 127.0.0.1:3033")
+	// Set up connection to IVBS
+	conn, err := net.Dial("tcp", "127.0.0.1")
+	if err != nil {
+		fmt.Println("Connection failed")
+	}
+	
+	_ = conn
+	
+	packet := new(ivbs.IvbsPacket)
+	packet.Op = ivbs.OP_LOGIN
+	packet.DataLength = ivbs.LEN_USERNAME + ivbs.LEN_PASSWORD_HASH
+	
+	loginPacket := new(ivbs.IvbsLogin)
+	loginPacket.Name = "foo"
+	loginPacket.PasswordHash = "bar"
+	
+	dataSlice := ivbs.IvbsStructToSlice(packet)
+	dataSlice = append(dataSlice, ivbs.LoginStructToSlice(loginPacket)...)
+	
+	
 	
 	time.Sleep(500*time.Millisecond)
 	fmt.Println("In server: After sleep")
@@ -82,8 +107,8 @@ func server(nbd_fd uintptr, socket_fd int, quitCh chan int, nbd_path string) {
 		break*/
 		select {
 		case <-quitCh:
-			return
 			fmt.Println("Trying to disconnect..")
+			return
 			nbd.Call2(nbd_fd, nbd.NBD_CLEAR_QUE, 0)
 			nbd.Call2(nbd_fd, nbd.NBD_DISCONNECT, 0)
 			nbd.Call2(nbd_fd, nbd.NBD_CLEAR_SOCK, 0)
@@ -123,49 +148,24 @@ func main() {
 		fmt.Printf("socketpair() failed with error: %s", err)
 	}
 	
-	//nbd_fd, err := syscall.Open(nbd_path, syscall.O_RDWR, 0666)
 	nbd_file, err := os.OpenFile(nbd_path, os.O_RDWR, 0666)
-	nbd_fd := nbd_file.Fd()
-	defer nbd_file.Close()
 	if(err != nil) {
 		fmt.Printf("Tried opening %s with error: %s\nExiting..\n", nbd_path, err)
 		os.Exit(0)
 	}
-	fmt.Println("Setting up connection to 127.0.0.1")
-	// Set up connection to IVBS
-	conn, err := net.Dial("tcp", "127.0.0.1")
-	if err != nil {
-		fmt.Println("Connection failed")
-	}
+	_ = nbd_file.Fd()
 	
-	packet := new(ivbs.IvbsPacket)
-	packet.Op = ivbs.OP_LOGIN
-	packet.DataLength = ivbs.LEN_USERNAME + ivbs.LEN_PASSWORD_HASH
-	
-	loginPacket := new(ivbs.IvbsLogin)
-	loginPacket.Name = "foo"
-	loginPacket.PasswordHash = "bar"
-	
-	dataSlice := ivbs.IvbsStructToSlice(packet)
-	dataSlice = append(dataSlice, ivbs.LoginStructToSlice(loginPacket)...)
-	
-	
-	_ = nbd_fd // TODO: Remove later
-	//conn.Write(dataSlice)
-	fmt.Println(conn)
-	
-	//quitCh := make(chan int)
+	quitCh := make(chan int)
 	
 	// Dat thread
 	//go client(nbd_fd, fd[CLIENT_SOCKET])
 	//fmt.Println("Server..")
-	//go server(nbd_fd, fd[SERVER_SOCKET], quitCh, nbd_path)
+	go server(fd[SERVER_SOCKET], quitCh, nbd_path, nbd_file)
 	
-	time.Sleep(5 * time.Second)
+	time.Sleep(2 * time.Second)
 	
-	//quitCh <- 0
+	quitCh <- 0
 	
-	//tmp_fd := nbd_fd
 	//disconnect(nbd_path, nbd_fd)
 	
 	time.Sleep(5 * time.Second)
