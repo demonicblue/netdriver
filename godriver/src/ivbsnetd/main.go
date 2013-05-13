@@ -8,7 +8,7 @@ import(
 	"time"
 	"nbd"
 	"net"
-	"encoding/binary"
+	"ivbs"
 )
 
 // Capitalized, hush hush
@@ -22,49 +22,6 @@ const DATASIZE = 1024*1024*50
 const (
 	NETD_DISC	= iota
 )
-
-const (
-	OP_GREETING		uint32 = 1
-	OP_KEEPALIVE	uint32 = 2
-
-	OP_LOGIN		uint32 = 100
-
-	OP_READ			uint32 = 300
-	OP_WRITE		uint32 = 301
-
-	OP_LIST_PROXIES	uint32 = 211
-)
-
-const (
-    STATUS_OK                = 0
-    STATUS_NOT_FOUND         = 1
-    STATUS_ALREADY_EXISTS    = 2
-    STATUS_NOT_LOGGEDIN      = 3
-    STATUS_PERMISSION_DENIED = 4
-    STATUS_READ_ONLY         = 5
-    STATUS_NOT_READY         = 6
-
-    STATUS_TEMPORARY_ERROR   = 10
-    STATUS_PERMANENT_ERROR   = 11
-    STATUS_USE_ANOTHER_PROXY = 12
-    STATUS_INVALID_REQUEST   = 13
-    STATUS_EXPIRED           = 14
-)
-
-type Login struct {
-    Name         string
-    PasswordHash string
-}
-const LEN_USERNAME      = 32
-const LEN_PASSWORD_HASH = 128
-
-type ivbs_packet struct {
-	sessionId [32]byte
-	op uint32
-	status int8
-	dataLength uint32
-	sequence uint32
-}
 
 // Switch byte-order
 func ntohl(v uint32) uint32 {
@@ -151,27 +108,6 @@ func disconnect(nbd_path string, nbd_fd uintptr) {
 	nbd.Call2(tmp_fd, nbd.NBD_CLEAR_SOCK, 0)
 }
 
-func ivbsStructToSlice(packet *ivbs_packet) ([]byte) {
-	data := make([]byte, 45)
-	
-	copy(data[:32], packet.sessionId[:])
-	binary.BigEndian.PutUint32(data[32:36], packet.op)
-	data[36] = byte(packet.status)
-	binary.BigEndian.PutUint32(data[37:41], packet.dataLength)
-	binary.BigEndian.PutUint32(data[41:], packet.sequence)
-	
-	return data
-}
-
-func loginStructToSlice(packet *Login) ([]byte) {
-	data := make([]byte, LEN_USERNAME + LEN_PASSWORD_HASH)
-	
-	copy(data[:LEN_USERNAME], []byte(packet.Name))
-	copy(data[LEN_USERNAME:], []byte(packet.PasswordHash))
-	
-	return data
-}
-
 func main() {
 	data := make([]uint8, DATASIZE)
 	_ = data[0] // TODO Remove
@@ -195,27 +131,28 @@ func main() {
 		fmt.Printf("Tried opening %s with error: %s\nExiting..\n", nbd_path, err)
 		os.Exit(0)
 	}
-	
+	fmt.Println("Setting up connection to 127.0.0.1")
 	// Set up connection to IVBS
-	conn, err := net.Dial("tcp", "10.0.0.1")
+	conn, err := net.Dial("tcp", "127.0.0.1")
 	if err != nil {
 		fmt.Println("Connection failed")
 	}
 	
-	packet := new(ivbs_packet)
-	packet.op = OP_LOGIN
-	packet.dataLength = LEN_USERNAME + LEN_PASSWORD_HASH
+	packet := new(ivbs.IvbsPacket)
+	packet.Op = ivbs.OP_LOGIN
+	packet.DataLength = ivbs.LEN_USERNAME + ivbs.LEN_PASSWORD_HASH
 	
-	loginPacket := new(Login)
+	loginPacket := new(ivbs.IvbsLogin)
 	loginPacket.Name = "foo"
 	loginPacket.PasswordHash = "bar"
 	
-	dataSlice := ivbsStructToSlice(packet)
-	dataSlice = append(dataSlice, loginStructToSlice(loginPacket)...)
+	dataSlice := ivbs.IvbsStructToSlice(packet)
+	dataSlice = append(dataSlice, ivbs.LoginStructToSlice(loginPacket)...)
 	
 	
 	_ = nbd_fd // TODO: Remove later
-	conn.Write(dataSlice)
+	//conn.Write(dataSlice)
+	fmt.Println(conn)
 	
 	//quitCh := make(chan int)
 	
