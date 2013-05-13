@@ -49,6 +49,16 @@ func HttpQuitServer(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, "<h1>The HTTP-Server is shutting down...</h1>")
 	kanal <- 1
 }
+func HttpMountImage(w http.ResponseWriter, r *http.Request) {
+	err := r.ParseForm()
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	target := r.Form["user"][0]
+
+	fmt.Fprint(w, "<h1>TODO Mount an IVBS-image</h1>\n ", target)
+}
 
 // Client thread
 func client(nbd_fd uintptr, socket_fd int) {
@@ -188,6 +198,7 @@ func main() {
 	http.HandleFunc("/", HttpRootHandler)
 	http.HandleFunc("/check-health", HttpCheckHealthHandler)
 	http.HandleFunc("/quit", HttpQuitServer)
+	http.HandleFunc("/mount", HttpMountImage)
 
 	go http.ListenAndServe("localhost:1234", nil)
 
