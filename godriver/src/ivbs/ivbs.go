@@ -65,3 +65,24 @@ func LoginStructToSlice(packet *IvbsLogin) ([]byte) {
 	
 	return data
 }
+
+func SliceToStruct(data []byte) (*ivbs.IvbsPacket) {
+	packet := new(ivbs.IvbsPacket)
+	
+	copy(packet.SessionId[:], data[:32])
+	packet.Op = binary.BigEndian.Uint32(data[32:36])
+	packet.Status = int8(data[36])
+	packet.DataLength = binary.BigEndian.Uint32(data[37:41])
+	packet.Sequence = binary.BigEndian.Uint32(data[41:45])
+	
+	return packet
+}
+
+func LoginSliceToStruct(data []byte) (*ivbs.IvbsLogin) {
+	packet := new(ivbs.IvbsLogin)
+	
+	packet.Name = string(data[:ivbs.LEN_USERNAME])
+	packet.PasswordHash = string(data[ivbs.LEN_USERNAME:ivbs.LEN_USERNAME+ivbs.LEN_PASSWORD_HASH])
+	
+	return packet
+}
