@@ -55,7 +55,9 @@ func HttpMountImage(w http.ResponseWriter, r *http.Request) {
 		fmt.Println(err)
 	}
 
-	target := r.Form["user"][0]
+	target := r.Form["data"][0]
+
+	fmt.Println("Got POST: ", r.Form["data"][0])
 
 	fmt.Fprint(w, "<h1>TODO Mount an IVBS-image</h1>\n ", target)
 }
