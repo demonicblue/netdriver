@@ -10,6 +10,7 @@ import (
 const(
 	 httpString = "http://"
 	 mountString = "/mount"
+	 quitString = "/quit"
 )
 
 type Data struct {
@@ -45,7 +46,6 @@ func main(){
 			                fmt.Println(err)
 			        }
 			        defer resp.Body.Close()
-			        fmt.Println(httpString+server+mountString)
 				break
 
 			case "list":
@@ -53,11 +53,15 @@ func main(){
 				break
 
 			case "disc":
+				values := make(url.Values)
+				values.Set("quit", "exit")
+				_, _ = http.PostForm((httpString+server+quitString), values)
+				fmt.Println("HTTP-server shutting down.")
 				break
 
 			case "help":
 				fmt.Println("\nCommands available:")
-				fmt.Println("disc \t Disconnects you from the server.")
+				fmt.Println("disc \t Disconnects the HTTP-server. (Shuts it down)")
 				fmt.Println("exit \t Exits the Netdriver-Client.")
 				fmt.Println("list \t Lists all available NBD-devices.")
 				fmt.Println("mount \t Mounts a NBD-device to specific image.")

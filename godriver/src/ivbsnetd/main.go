@@ -46,20 +46,28 @@ func HttpRootHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func HttpQuitServer(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprint(w, "<h1>The HTTP-Server is shutting down...</h1>")
-	kanal <- 1
+	err := r.ParseForm()
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	fmt.Println("Got POST: ", r.Form["data"][0])
+
+	if r.Form["quit"][0] == "exit"{
+		fmt.Fprint(w, "<h1>The HTTP-Server is shutting down...</h1>")
+		kanal <- 1
+	}
 }
+
 func HttpMountImage(w http.ResponseWriter, r *http.Request) {
 	err := r.ParseForm()
 	if err != nil {
 		fmt.Println(err)
 	}
 
-	target := r.Form["data"][0]
-
 	fmt.Println("Got POST: ", r.Form["data"][0])
 
-	fmt.Fprint(w, "<h1>TODO Mount an IVBS-image</h1>\n ", target)
+	fmt.Fprint(w, "<h1>TODO Mount an IVBS-image</h1>\n ")
 }
 
 // Client thread
