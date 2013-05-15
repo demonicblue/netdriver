@@ -4,24 +4,30 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"net"
 	"flag"
 )
 
+/*
+ *	Simple string constants for sending POST
+ */
 const(
 	 httpString = "http://"
 	 mountString = "/mount"
 	 quitString = "/quit"
 )
 
-type Data struct {
-	Int int
-}
-
+/*
+ * Netdriver-Client main function.
+ * Usage: ./netdclient -c ip-address:port
+ * Sends PostForms to the HTTP-server to handle the
+ * IVBS-Netdriver.
+ */
 func main(){
 	fmt.Println("Netdriver-Client started!")
 	var cmd, server, target string
 
-	flag.StringVar(&server, "c", "", "IP-address for HTTP-server")
+	flag.StringVar(&server, "c", "", "IP-address to HTTP-server")
 	flag.Parse()
 
 	for{
@@ -56,11 +62,21 @@ func main(){
 				values := make(url.Values)
 				values.Set("quit", "exit")
 				_, _ = http.PostForm((httpString+server+quitString), values)
-				fmt.Println("HTTP-server shutting down.")
+				fmt.Println("HTTP-server is shutting down...")
+				break
+
+			case "check":
+				_, err := net.Dial("tcp", server)
+				if err != nil {
+					fmt.Println("HTTP-Server is offline.")
+					break
+				}
+				fmt.Println("HTTP-server is online.")
 				break
 
 			case "help":
 				fmt.Println("\nCommands available:")
+				fmt.Println("check \t Checks the status of the HTTP-server")
 				fmt.Println("disc \t Disconnects the HTTP-server. (Shuts it down)")
 				fmt.Println("exit \t Exits the Netdriver-Client.")
 				fmt.Println("list \t Lists all available NBD-devices.")
@@ -72,13 +88,13 @@ func main(){
 				for{
 				fmt.Println("Are you sure you want to exit? Y/N")
 				_, _ = fmt.Scanln(&cmd)
-				if cmd == "Y" || cmd == "y"{
-					return
-				}
-				if cmd == "N" || cmd == "n"{
-					break
+					if cmd == "Y" || cmd == "y"{
+						return
+					}
+					if cmd == "N" || cmd == "n"{
+						break
+					}
 				}
 			}
-		}
 	}
 }
