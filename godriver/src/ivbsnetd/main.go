@@ -10,6 +10,7 @@ import(
 	"net"
 	"ivbs"
 	"net/http"
+	"strconv"
 )
 
 // Capitalized, hush hush
@@ -18,6 +19,8 @@ const (
 	CLIENT_SOCKET = 1
 )
 var httpAlive = make(chan int)
+var lista map[int]string
+var listm map[string]string
 
 const DATASIZE = 1024*1024*50
 
@@ -33,7 +36,7 @@ func ntohl(v uint32) uint32 {
 func HttpCheckHealthHandler(w http.ResponseWriter, r *http.Request) {
 	resp, err := http.Get("http://reddit.com/r/golang.json") //insert json-object here
 	if err != nil{
-		fmt.Println(err)
+		fmt.Println("Error: %g", err)
 	}
 	if resp.StatusCode != http.StatusOK{
 		fmt.Println(resp.Status)
@@ -42,30 +45,37 @@ func HttpCheckHealthHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func HttpRootHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "<h1>HTTPRootHandler</h1>\n")
-}
-
-func HttpQuitServer(w http.ResponseWriter, r *http.Request) {
 	err := r.ParseForm()
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("Error:%g", err)
 	}
 
-	if r.Form["quit"][0] == "exit"{
-		fmt.Fprint(w, "<h1>The HTTP-Server is shutting down...</h1>")
-		httpAlive <- 1
+	cmd := r.Form["command"][0]
+
+	switch cmd{
+
+		case "exit":
+			fmt.Fprint(w, "<h1>The HTTP-Server is shutting down...</h1>")
+			httpAlive <- 1
+			break
+
+		case "mount":
+			//TODO
+			break
+
+		case "lista":
+			for i:=0; i<len(lista); i++{
+				fmt.Fprintln(w, lista[i])
+			}
+			break
+
+		case "listm":
+			//TODO
+			fmt.Println(listm)
+			break
+
 	}
-}
-
-func HttpMountImage(w http.ResponseWriter, r *http.Request) {
-	err := r.ParseForm()
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	fmt.Println("Got POST: ", r.Form["data"][0])
-
-	fmt.Fprint(w, "<h1>TODO Mount an IVBS-image</h1>\n ")
+	return
 }
 
 // Client thread
@@ -73,18 +83,18 @@ func client(nbd_fd uintptr, socket_fd int) {
 	
 	fmt.Println("Starting client")
 	if err:= nbd.Call2(nbd_fd, nbd.NBD_SET_SIZE, DATASIZE); err != nil {
-		fmt.Printf("Error setting size: %s", err)
+		fmt.Printf("Error setting size: %g", err)
 	}
 	if err:= nbd.Call2(nbd_fd, nbd.NBD_CLEAR_SOCK, 0); err != nil {
-		fmt.Print("Error clearing socket: %s", err)
+		fmt.Print("Error clearing socket: %g", err)
 	}
 	
 	if err := nbd.Call2(nbd_fd, nbd.NBD_SET_SOCK, socket_fd); err != nil {
-		fmt.Printf("Could not set socket: %s\n", err)
+		fmt.Printf("Could not set socket: %g\n", err)
 	}
 	
 	if err := nbd.Call2(nbd_fd, nbd.NBD_DO_IT, 0); err != nil {
-		fmt.Print("Error starting client: %s\n", err)
+		fmt.Print("Error starting client: %g\n", err)
 	}
 	
 	fmt.Println("Disconnecting..")
@@ -153,15 +163,17 @@ func main() {
 	_ = data[0] // TODO Remove
 
 	var nbd_path, server string
+	var nrDevices int
 	
 	// Setup flags
 	flag.StringVar(&nbd_path, "n", "/dev/nbd5", "Path to NBD device")
-	flag.StringVar(&server, "c", "", "Address for HTTP-Server")
+	flag.StringVar(&server, "c", "localhost:12345", "Address for the HTTP-Server")
+	flag.IntVar(&nrDevices, "d", 50, "Number of NBD-devices")
 	flag.Parse()
 	
 	fd, err := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_STREAM, 0) // Inter-process, client-server communication
 	if(err != nil) {
-		fmt.Printf("socketpair() failed with error: %s", err)
+		fmt.Printf("socketpair() failed with error: %g", err)
 	}
 	
 	//nbd_fd, err := syscall.Open(nbd_path, syscall.O_RDWR, 0666)
@@ -169,7 +181,7 @@ func main() {
 	nbd_fd := nbd_file.Fd()
 	defer nbd_file.Close()
 	if(err != nil) {
-		fmt.Printf("Tried opening %s with error: %s\nExiting..\n", nbd_path, err)
+		fmt.Printf("Tried opening %s with error: %g\nExiting..\n", nbd_path, err)
 		os.Exit(0)
 	}
 	fmt.Println("Setting up connection to 127.0.0.1")
@@ -203,11 +215,16 @@ func main() {
 	//go server(nbd_fd, fd[SERVER_SOCKET], quitCh, nbd_path)
 	
 	fmt.Println("HTTP-Server starting on", server)
+
+	lista = make(map[int]string)
+	listm = make(map[string]string)
+
+	for i:=0; i<nrDevices; i++{
+		lista[i] = ("/dev/nbd"+strconv.Itoa(i))
+	}
 	
 	http.HandleFunc("/", HttpRootHandler)
 	http.HandleFunc("/check-health", HttpCheckHealthHandler)
-	http.HandleFunc("/quit", HttpQuitServer)
-	http.HandleFunc("/mount", HttpMountImage)
 
 	go http.ListenAndServe(server, nil)
 
