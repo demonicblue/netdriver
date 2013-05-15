@@ -17,7 +17,7 @@ const (
 	SERVER_SOCKET = 0
 	CLIENT_SOCKET = 1
 )
-var kanal = make(chan int)
+var httpAlive = make(chan int)
 
 const DATASIZE = 1024*1024*50
 
@@ -31,7 +31,7 @@ func ntohl(v uint32) uint32 {
 }
 
 func HttpCheckHealthHandler(w http.ResponseWriter, r *http.Request) {
-	resp, err := http.Get("http://reddit.com/r/golang.json") //insert ivbs-server ip
+	resp, err := http.Get("http://reddit.com/r/golang.json") //insert json-object here
 	if err != nil{
 		fmt.Println(err)
 	}
@@ -51,11 +51,9 @@ func HttpQuitServer(w http.ResponseWriter, r *http.Request) {
 		fmt.Println(err)
 	}
 
-	fmt.Println("Got POST: ", r.Form["data"][0])
-
 	if r.Form["quit"][0] == "exit"{
 		fmt.Fprint(w, "<h1>The HTTP-Server is shutting down...</h1>")
-		kanal <- 1
+		httpAlive <- 1
 	}
 }
 
@@ -154,10 +152,11 @@ func main() {
 	data := make([]uint8, DATASIZE)
 	_ = data[0] // TODO Remove
 
-	var nbd_path string
+	var nbd_path, server string
 	
 	// Setup flags
 	flag.StringVar(&nbd_path, "n", "/dev/nbd5", "Path to NBD device")
+	flag.StringVar(&server, "c", "", "Address for HTTP-Server")
 	flag.Parse()
 	
 	fd, err := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_STREAM, 0) // Inter-process, client-server communication
@@ -203,18 +202,18 @@ func main() {
 	//fmt.Println("Server..")
 	//go server(nbd_fd, fd[SERVER_SOCKET], quitCh, nbd_path)
 	
-	fmt.Println("HTTP-Server starting...")
+	fmt.Println("HTTP-Server starting on", server)
 	
 	http.HandleFunc("/", HttpRootHandler)
 	http.HandleFunc("/check-health", HttpCheckHealthHandler)
 	http.HandleFunc("/quit", HttpQuitServer)
 	http.HandleFunc("/mount", HttpMountImage)
 
-	go http.ListenAndServe("localhost:1234", nil)
+	go http.ListenAndServe(server, nil)
 
 	fmt.Println("HTTP-Server is up and running!")
 
-	<-kanal
+	<-httpAlive
 
 	fmt.Println("HTTP-Server shutting down...")
 
