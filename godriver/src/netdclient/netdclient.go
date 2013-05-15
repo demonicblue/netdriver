@@ -13,9 +13,19 @@ import (
  */
 const(
 	 httpString = "http://"
-	 mountString = "/mount"
-	 quitString = "/quit"
+	 slash = "/"
 )
+
+var server string
+
+func checkConnection() bool{
+	if _, err := net.Dial("tcp", server); err != nil{
+		fmt.Println("HTTP-server is offline.")
+		return false
+	}
+	fmt.Println("HTTP-server is online.")
+	return true
+}
 
 /*
  * Netdriver-Client main function.
@@ -25,10 +35,11 @@ const(
  */
 func main(){
 	fmt.Println("Netdriver-Client started!")
-	var cmd, server, target string
+	var cmd, target string
 
-	flag.StringVar(&server, "c", "", "IP-address to HTTP-server")
+	flag.StringVar(&server, "c", "localhost:12345", "IP-address to HTTP-server")
 	flag.Parse()
+	serverAdress := httpString+server+slash //adds http:// and / to the serverstring
 
 	for{
 		_, err := fmt.Scanln(&cmd)
@@ -42,11 +53,14 @@ func main(){
 				fmt.Println("Unknown command! Try type 'help' for available commands.")
 
 			case "mount":
+				if checkConnection() != true {
+					break
+				}
 				fmt.Print("Type in your target:")
 				_, _ = fmt.Scanln(&target)
 				values := make(url.Values)
-				values.Set("data", target)
-				resp, err := http.PostForm((httpString+server+mountString), values)
+				values.Set("command", target)
+				resp, err := http.PostForm(serverAdress, values)
 
 			        if err != nil {
 			                fmt.Println(err)
@@ -54,24 +68,51 @@ func main(){
 			        defer resp.Body.Close()
 				break
 
-			case "list":
-				fmt.Println("List of mounted NBD-devices:")
+			case "listm":
+				if checkConnection() != true {
+					break
+				}
+				fmt.Println("List of all mounted NBD-devices:")
+				values := make(url.Values)
+				values.Set("command", "listm")
+				resp, _ := http.PostForm(serverAdress, values)
+				temp := make([]byte, 1024)
+				for {
+					if _, err := resp.Body.Read(temp); err == nil {
+						fmt.Println(string(temp))
+						break
+					}
+				}
+				break
+
+			case "lista":
+				if checkConnection() != true {
+					break
+				}
+				fmt.Println("List of all available NBD-devices:")
+				values := make(url.Values)
+				values.Set("command", "lista")
+				resp, _ := http.PostForm(serverAdress, values)
+				temp := make([]byte, 1024)
+				for {
+					if _, err := resp.Body.Read(temp); err == nil {
+						fmt.Println(string(temp))
+						break
+					}
+				}
 				break
 
 			case "disc":
+				if checkConnection() != true {
+					break
+				}
 				values := make(url.Values)
-				values.Set("quit", "exit")
-				_, _ = http.PostForm((httpString+server+quitString), values)
-				fmt.Println("HTTP-server is shutting down...")
+				values.Set("command", "exit")
+				_, _ = http.PostForm(serverAdress, values)
 				break
 
 			case "check":
-				_, err := net.Dial("tcp", server)
-				if err != nil {
-					fmt.Println("HTTP-Server is offline.")
-					break
-				}
-				fmt.Println("HTTP-server is online.")
+				checkConnection()
 				break
 
 			case "help":
@@ -79,7 +120,8 @@ func main(){
 				fmt.Println("check \t Checks the status of the HTTP-server")
 				fmt.Println("disc \t Disconnects the HTTP-server. (Shuts it down)")
 				fmt.Println("exit \t Exits the Netdriver-Client.")
-				fmt.Println("list \t Lists all available NBD-devices.")
+				fmt.Println("lista \t Lists all AVAIABLE NBD-devices.")
+				fmt.Println("listm \t Lists all MOUNTED NBD-devices.")
 				fmt.Println("mount \t Mounts a NBD-device to specific image.")
 				fmt.Println("------------------------------------------------")
 				break
