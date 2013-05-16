@@ -55,10 +55,10 @@ func main(){
 				if checkConnection() != true {
 					break
 				}
-				fmt.Print("Type in your target image:")
-				_, _ = fmt.Scanln(&targetImg)
-				fmt.Print("Type in your target NBD-device:")
+				fmt.Print("Type in your target NBD-device to mount:")
 				_, _ = fmt.Scanln(&targetNBD)
+				fmt.Print("Type in your target image for ",targetNBD,":")
+				_, _ = fmt.Scanln(&targetImg)
 				values := make(url.Values)
 				values.Set("command", "mount")
 				values.Set("target", targetImg)
@@ -66,9 +66,25 @@ func main(){
 				resp, err := http.PostForm(serverAdress, values)
 
 		        if err != nil {
-		                fmt.Println(err)
+		                fmt.Println("Error: %g",&err)
 		        }
 		        defer resp.Body.Close()
+				
+				break
+
+			case "unmount":
+				fmt.Print("Type in your target NBD-device to unmount:")
+				_, _ = fmt.Scanln(&targetNBD)
+				values := make(url.Values)
+				values.Set("command", "unmount")
+				values.Set("nbd", targetNBD)
+				resp, err := http.PostForm(serverAdress, values)
+		        
+		        if err != nil {
+		                fmt.Println("Error: %g",err)
+		        }
+		        defer resp.Body.Close()
+				
 				break
 
 			case "listm":
@@ -83,6 +99,9 @@ func main(){
 				for {
 					if _, err := resp.Body.Read(temp); err == nil {
 						fmt.Println(string(temp))
+						break
+					}
+					if _, err := resp.Body.Read(temp); err != nil {
 						break
 					}
 				}
@@ -128,6 +147,7 @@ func main(){
 				fmt.Println("lista \t Lists all AVAIABLE NBD-devices.")
 				fmt.Println("listm \t Lists all MOUNTED NBD-devices.")
 				fmt.Println("mount \t Mounts a NBD-device to specific image.")
+				fmt.Println("unmount \t Unmounts the NBD-device specified.")
 				fmt.Println("------------------------------------------------")
 				break
 
