@@ -110,7 +110,10 @@ func HttpRootHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // Client thread
-func client(nbd_fd uintptr, socket_fd int) {
+func client(session IVBSSession) {
+	
+	socket_fd := int(session.NbdFile.Fd())
+	nbd_fd := session.NbdFile.Fd()
 	
 	fmt.Println("Starting client")
 	if err:= nbd.Call2(nbd_fd, nbd.NBD_SET_SIZE, DATASIZE); err != nil {
@@ -145,11 +148,12 @@ type IVBSSession struct {
 	Image string
 	Username string
 	Passwd string
-	Send chan []byte
-	Response chan IVBSResponse
+	SendCh chan []byte
+	ResponseCh chan IVBSResponse
 	QuitCh chan bool
 	NbdFile *os.File
 	NbdPath string
+	Fd [2]int
 }
 
 type IVBSResponse struct {
@@ -174,7 +178,7 @@ func IOHandler(session IVBSSession) {
 	
 	// Sender - receives data on channel and writes to connection
 	go func(session IVBSSession) { //TODO Eliminate and refactor to server thread or improve
-		data := <- session.Send
+		data := <- session.SendCh
 		session.Conn.Write(data)
 	}(session)
 	
@@ -206,7 +210,7 @@ func IOHandler(session IVBSSession) {
 			switch reply.Op { // TODO Maybe handle greetings with reconnects
 			case ivbs.OP_LIST_PROXIES:
 			case ivbs.OP_READ, ivbs.OP_WRITE:
-				session.Response <- IVBSResponse{reply, moreData}
+				session.ResponseCh <- IVBSResponse{reply, moreData}
 			case ivbs.OP_KEEPALIVE:
 			default:
 				//Unknown
@@ -273,10 +277,13 @@ func setupConnection(image, user, passwd, nbd_path string) (IVBSSession, error) 
 							make(chan bool),
 							nbd_file,
 							"",
+							fd,
 	}
 	
 	// Start serving network data and return the session
 	go IOHandler(session)
+	go client(session)
+	
 	return session, nil
 	
 	
