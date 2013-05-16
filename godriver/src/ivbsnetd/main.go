@@ -60,6 +60,26 @@ func HttpRootHandler(w http.ResponseWriter, r *http.Request) {
 			break
 
 		case "mount":
+			targetNBD := r.Form["nbd"][0]
+			targetImg := r.Form["target"][0]
+			for i:=0; i<len(lista); i++{
+				if lista[i] == targetNBD{
+					listm[lista[i]] = targetImg
+					delete(lista, i)
+					return
+				}
+			}
+			for key, value := range lista{
+				if value != ""{
+					availableNBD := lista[key]
+					listm[availableNBD] = targetImg
+					delete(lista, key)
+					break
+				}
+			}
+			break
+
+		case "unmount":
 			//TODO
 			break
 
@@ -70,8 +90,9 @@ func HttpRootHandler(w http.ResponseWriter, r *http.Request) {
 			break
 
 		case "listm":
-			//TODO
-			fmt.Println(listm)
+			for key, value := range listm{
+				fmt.Fprintln(w, key+"\t"+value)
+			}
 			break
 
 	}

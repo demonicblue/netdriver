@@ -23,7 +23,6 @@ func checkConnection() bool{
 		fmt.Println("HTTP-server is offline.")
 		return false
 	}
-	fmt.Println("HTTP-server is online.")
 	return true
 }
 
@@ -35,7 +34,7 @@ func checkConnection() bool{
  */
 func main(){
 	fmt.Println("Netdriver-Client started!")
-	var cmd, target string
+	var cmd, targetImg, targetNBD string
 
 	flag.StringVar(&server, "c", "localhost:12345", "IP-address to HTTP-server")
 	flag.Parse()
@@ -56,16 +55,20 @@ func main(){
 				if checkConnection() != true {
 					break
 				}
-				fmt.Print("Type in your target:")
-				_, _ = fmt.Scanln(&target)
+				fmt.Print("Type in your target image:")
+				_, _ = fmt.Scanln(&targetImg)
+				fmt.Print("Type in your target NBD-device:")
+				_, _ = fmt.Scanln(&targetNBD)
 				values := make(url.Values)
-				values.Set("command", target)
+				values.Set("command", "mount")
+				values.Set("target", targetImg)
+				values.Set("nbd", targetNBD)
 				resp, err := http.PostForm(serverAdress, values)
 
-			        if err != nil {
-			                fmt.Println(err)
-			        }
-			        defer resp.Body.Close()
+		        if err != nil {
+		                fmt.Println(err)
+		        }
+		        defer resp.Body.Close()
 				break
 
 			case "listm":
@@ -112,7 +115,9 @@ func main(){
 				break
 
 			case "check":
-				checkConnection()
+				if checkConnection(){
+					fmt.Println("HTTP-server is online.")
+				}
 				break
 
 			case "help":
