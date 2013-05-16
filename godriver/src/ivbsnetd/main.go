@@ -60,32 +60,42 @@ func HttpRootHandler(w http.ResponseWriter, r *http.Request) {
 			break
 
 		case "mount":
+			//TODO Real mounting to NBD-devices with real images
 			targetNBD := r.Form["nbd"][0]
 			targetImg := r.Form["target"][0]
 			for i:=0; i<len(lista); i++{
 				if lista[i] == targetNBD{
 					listm[lista[i]] = targetImg
-					delete(lista, i)
+					lista[i] = ""
 					return
 				}
 			}
 			for key, value := range lista{
 				if value != ""{
-					availableNBD := lista[key]
-					listm[availableNBD] = targetImg
-					delete(lista, key)
+					listm[lista[key]] = targetImg
+					lista[key] = ""
 					break
 				}
 			}
 			break
 
 		case "unmount":
-			//TODO
+			//TODO Real unmounting of NBD-devices
+			targetNBD := r.Form["nbd"][0]
+			for key, _ := range lista {
+				if lista[key] == ""{
+					delete(listm, targetNBD)
+					lista[key] = targetNBD
+					break
+				}
+			}
 			break
 
 		case "lista":
 			for i:=0; i<len(lista); i++{
-				fmt.Fprintln(w, lista[i])
+				if lista[i] != ""{
+					fmt.Fprintln(w, lista[i])
+				}
 			}
 			break
 
