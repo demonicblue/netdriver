@@ -11,6 +11,7 @@ import(
 	"ivbs"
 	"net/http"
 	"strconv"
+	"strings"
 )
 
 // Capitalized, hush hush
@@ -55,7 +56,7 @@ func HttpRootHandler(w http.ResponseWriter, r *http.Request) {
 	switch cmd{
 
 		case "exit":
-			fmt.Fprint(w, "<h1>The HTTP-Server is shutting down...</h1>")
+			fmt.Fprint(w, "HTTP-Server shutting down...")
 			httpAlive <- 1
 			break
 
@@ -63,18 +64,21 @@ func HttpRootHandler(w http.ResponseWriter, r *http.Request) {
 			//TODO Real mounting to NBD-devices with real images
 			targetNBD := r.Form["nbd"][0]
 			targetImg := r.Form["target"][0]
-			for i:=0; i<len(lista); i++{
-				if lista[i] == targetNBD{
-					listm[lista[i]] = targetImg
-					lista[i] = ""
-					return
+			if strings.Contains(targetNBD, "/dev/nbd"){
+				for i:=0; i<len(lista); i++{
+					if lista[i] == targetNBD{
+						listm[lista[i]] = targetImg
+						lista[i] = ""
+						fmt.Fprintln(w, "Successfully mounted "+targetImg+" to "+targetNBD+"\n")
+						return
+					}
 				}
-			}
-			for key, value := range lista{
-				if value != ""{
-					listm[lista[key]] = targetImg
-					lista[key] = ""
-					break
+				for key, value := range lista{
+					if value != ""{
+						listm[lista[key]] = targetImg
+						lista[key] = ""
+						break
+					}
 				}
 			}
 			break
@@ -86,6 +90,7 @@ func HttpRootHandler(w http.ResponseWriter, r *http.Request) {
 				if lista[key] == ""{
 					delete(listm, targetNBD)
 					lista[key] = targetNBD
+					fmt.Fprintln(w, "Successfully unmounted "+targetNBD)
 					break
 				}
 			}

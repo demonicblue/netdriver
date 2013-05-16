@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"net"
 	"flag"
+//	"strings"
 )
 
 /*
@@ -26,6 +27,21 @@ func checkConnection() bool{
 	return true
 }
 
+func readResponse(resp *http.Response){
+	length := resp.ContentLength
+	
+	if length == -1{
+		length = 1024
+	}
+
+	temp := make([]byte, length)
+	
+	resp.Body.Read(temp)
+	fmt.Println(string(temp))
+	
+	fmt.Println("------------------------------------------------")
+}
+
 /*
  * Netdriver-Client main function.
  * Usage: ./netdclient -c ip-address:port
@@ -41,7 +57,7 @@ func main(){
 	serverAdress := httpString+server+slash //adds http:// and / to the serverstring
 
 	for{
-		_, err := fmt.Scanln(&cmd)
+		_, err := fmt.Scan(&cmd)
 		
 		if err != nil{
 			fmt.Println(err)
@@ -55,10 +71,17 @@ func main(){
 				if checkConnection() != true {
 					break
 				}
-				fmt.Print("Type in your target NBD-device to mount:")
-				_, _ = fmt.Scanln(&targetNBD)
-				fmt.Print("Type in your target image for ",targetNBD,":")
-				_, _ = fmt.Scanln(&targetImg)
+				
+				fmt.Println("Type in your target NBD-device to mount")
+				_, _ = fmt.Scan(&targetNBD)
+				fmt.Println("Type in your target image for",targetNBD)
+				_, err = fmt.Scan(&targetImg)
+
+				if err != nil{
+					fmt.Println("%g", err)
+					break
+				}
+
 				values := make(url.Values)
 				values.Set("command", "mount")
 				values.Set("target", targetImg)
@@ -68,23 +91,24 @@ func main(){
 		        if err != nil {
 		                fmt.Println("Error: %g",&err)
 		        }
-		        defer resp.Body.Close()
-				
+
+		        readResponse(resp)
 				break
 
 			case "unmount":
-				fmt.Print("Type in your target NBD-device to unmount:")
+				fmt.Println("Type in your target NBD-device to unmount")
 				_, _ = fmt.Scanln(&targetNBD)
+				
 				values := make(url.Values)
 				values.Set("command", "unmount")
 				values.Set("nbd", targetNBD)
 				resp, err := http.PostForm(serverAdress, values)
-		        
+
 		        if err != nil {
 		                fmt.Println("Error: %g",err)
 		        }
-		        defer resp.Body.Close()
-				
+
+				readResponse(resp)
 				break
 
 			case "listm":
@@ -94,17 +118,14 @@ func main(){
 				fmt.Println("List of all mounted NBD-devices:")
 				values := make(url.Values)
 				values.Set("command", "listm")
-				resp, _ := http.PostForm(serverAdress, values)
-				temp := make([]byte, 1024)
-				for {
-					if _, err := resp.Body.Read(temp); err == nil {
-						fmt.Println(string(temp))
-						break
-					}
-					if _, err := resp.Body.Read(temp); err != nil {
-						break
-					}
-				}
+				
+				resp, err := http.PostForm(serverAdress, values)
+		        
+		        if err != nil {
+		                fmt.Println("Error: %g",err)
+		        }
+				
+				readResponse(resp)
 				break
 
 			case "lista":
@@ -114,14 +135,14 @@ func main(){
 				fmt.Println("List of all available NBD-devices:")
 				values := make(url.Values)
 				values.Set("command", "lista")
-				resp, _ := http.PostForm(serverAdress, values)
-				temp := make([]byte, 1024)
-				for {
-					if _, err := resp.Body.Read(temp); err == nil {
-						fmt.Println(string(temp))
-						break
-					}
-				}
+				
+				resp, err := http.PostForm(serverAdress, values)
+		        
+		        if err != nil {
+		                fmt.Println("Error: %g",err)
+		        }
+
+				readResponse(resp)
 				break
 
 			case "disc":
@@ -130,12 +151,18 @@ func main(){
 				}
 				values := make(url.Values)
 				values.Set("command", "exit")
-				_, _ = http.PostForm(serverAdress, values)
+				resp, err := http.PostForm(serverAdress, values)
+		        
+		        if err != nil {
+		                fmt.Println("Error: %g",err)
+		        }
+
+		        readResponse(resp)
 				break
 
 			case "check":
 				if checkConnection(){
-					fmt.Println("HTTP-server is online.")
+					fmt.Println("HTTP-server on "+server+" is online.")
 				}
 				break
 
