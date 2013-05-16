@@ -9,6 +9,8 @@ import(
 	"nbd"
 	"net"
 	"ivbs"
+	"net/http"
+	"strconv"
 )
 
 // Capitalized, hush hush
@@ -16,6 +18,9 @@ const (
 	SERVER_SOCKET = 0
 	CLIENT_SOCKET = 1
 )
+var httpAlive = make(chan int)
+var lista map[int]string
+var listm map[string]string
 
 const DATASIZE = 1024*1024*50
 
@@ -28,23 +33,99 @@ func ntohl(v uint32) uint32 {
 	return uint32(byte(v >> 24)) | uint32(byte(v >> 16))<<8 | uint32(byte(v >> 8))<<16 | uint32(byte(v))<<24
 }
 
+func HttpCheckHealthHandler(w http.ResponseWriter, r *http.Request) {
+	resp, err := http.Get("http://reddit.com/r/golang.json") //insert json-object here
+	if err != nil{
+		fmt.Println("Error: %g", err)
+	}
+	if resp.StatusCode != http.StatusOK{
+		fmt.Println(resp.Status)
+	}
+	fmt.Fprintf(w, "<h1>Health Status</h1>\nStatus: %s", resp.Status)
+}
+
+func HttpRootHandler(w http.ResponseWriter, r *http.Request) {
+	err := r.ParseForm()
+	if err != nil {
+		fmt.Println("Error:%g", err)
+	}
+
+	cmd := r.Form["command"][0]
+
+	switch cmd{
+
+		case "exit":
+			fmt.Fprint(w, "<h1>The HTTP-Server is shutting down...</h1>")
+			httpAlive <- 1
+			break
+
+		case "mount":
+			//TODO Real mounting to NBD-devices with real images
+			targetNBD := r.Form["nbd"][0]
+			targetImg := r.Form["target"][0]
+			for i:=0; i<len(lista); i++{
+				if lista[i] == targetNBD{
+					listm[lista[i]] = targetImg
+					lista[i] = ""
+					return
+				}
+			}
+			for key, value := range lista{
+				if value != ""{
+					listm[lista[key]] = targetImg
+					lista[key] = ""
+					break
+				}
+			}
+			break
+
+		case "unmount":
+			//TODO Real unmounting of NBD-devices
+			targetNBD := r.Form["nbd"][0]
+			for key, _ := range lista {
+				if lista[key] == ""{
+					delete(listm, targetNBD)
+					lista[key] = targetNBD
+					break
+				}
+			}
+			break
+
+		case "lista":
+			for i:=0; i<len(lista); i++{
+				if lista[i] != ""{
+					fmt.Fprintln(w, lista[i])
+				}
+			}
+			break
+
+		case "listm":
+			for key, value := range listm{
+				fmt.Fprintln(w, key+"\t"+value)
+			}
+			break
+
+	}
+	return
+}
+
 // Client thread
 func client(nbd_fd uintptr, socket_fd int) {
 	
 	fmt.Println("Starting client")
 	if err:= nbd.Call2(nbd_fd, nbd.NBD_SET_SIZE, DATASIZE); err != nil {
-		fmt.Printf("Error setting size: %s", err)
+		fmt.Printf("Error setting size: %g", err)
 	}
 	if err:= nbd.Call2(nbd_fd, nbd.NBD_CLEAR_SOCK, 0); err != nil {
-		fmt.Print("Error clearing socket: %s", err)
+		fmt.Print("Error clearing socket: %g", err)
 	}
 	
 	if err := nbd.Call2(nbd_fd, nbd.NBD_SET_SOCK, socket_fd); err != nil {
-		fmt.Printf("Could not set socket: %s\n", err)
+		fmt.Printf("Could not set socket: %g\n", err)
 	}
 	
 	if err := nbd.Call2(nbd_fd, nbd.NBD_DO_IT, 0); err != nil {
-		fmt.Print("Error starting client: %s\n", err)
+		fmt.Print("Error starting client: %g\n", err)
 	}
 	
 	fmt.Println("Disconnecting..")
@@ -257,21 +338,24 @@ func disconnect(nbd_path string, nbd_fd uintptr) {
 func main() {
 	data := make([]uint8, DATASIZE)
 	_ = data[0] // TODO Remove
-	
-	var nbd_path string
+
+	var nbd_path, server string
+	var nrDevices int
 	
 	// Setup flags
 	flag.StringVar(&nbd_path, "n", "/dev/nbd5", "Path to NBD device")
+	flag.StringVar(&server, "c", "localhost:12345", "Address for the HTTP-Server")
+	flag.IntVar(&nrDevices, "d", 50, "Number of NBD-devices")
 	flag.Parse()
 	
 	fd, err := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_STREAM, 0) // Inter-process, client-server communication
 	if(err != nil) {
-		fmt.Printf("socketpair() failed with error: %s", err)
+		fmt.Printf("socketpair() failed with error: %g", err)
 	}
 	
 	nbd_file, err := os.OpenFile(nbd_path, os.O_RDWR, 0666)
 	if(err != nil) {
-		fmt.Printf("Tried opening %s with error: %s\nExiting..\n", nbd_path, err)
+		fmt.Printf("Tried opening %s with error: %g\nExiting..\n", nbd_path, err)
 		os.Exit(0)
 	}
 	_ = nbd_file.Fd()
@@ -283,7 +367,27 @@ func main() {
 	//fmt.Println("Server..")
 	//go server(fd[SERVER_SOCKET], quitCh, nbd_path, nbd_file)
 	
-	time.Sleep(2 * time.Second)
+	fmt.Println("HTTP-Server starting on", server)
+
+	lista = make(map[int]string)
+	listm = make(map[string]string)
+
+	for i:=0; i<nrDevices; i++{
+		lista[i] = ("/dev/nbd"+strconv.Itoa(i))
+	}
+	
+	http.HandleFunc("/", HttpRootHandler)
+	http.HandleFunc("/check-health", HttpCheckHealthHandler)
+
+	go http.ListenAndServe(server, nil)
+
+	fmt.Println("HTTP-Server is up and running!")
+
+	<-httpAlive
+
+	fmt.Println("HTTP-Server shutting down...")
+
+	time.Sleep(5 * time.Second)
 	
 	quitCh <- 0
 	
@@ -296,7 +400,5 @@ func main() {
 	//syscall.Close(nbd_fd)
 	
 	fmt.Println("Ending main")
-	
-	
 }
 
