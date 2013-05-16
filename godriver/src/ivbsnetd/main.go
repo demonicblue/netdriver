@@ -67,6 +67,8 @@ type IVBSSession struct {
 	Send chan []byte
 	Response chan IVBSResponse
 	QuitCh chan bool
+	NbdFile *os.File
+	NbdPath string
 }
 
 type IVBSResponse struct {
@@ -155,9 +157,6 @@ func setupConnection(image, user, passwd string) (IVBSSession, error) {
 		//return
 	}
 	
-	session := IVBSSession{conn, ivbs_reply.SessionId, image, user, passwd, make(chan []byte), make(chan IVBSResponse, MAX_CH_BUFF), make(chan bool)}
-	go IOHandler(session)
-	
 	packet := new(ivbs.IvbsPacket)
 	packet.Op = ivbs.OP_LOGIN
 	packet.DataLength = ivbs.LEN_USERNAME + ivbs.LEN_PASSWORD_HASH
@@ -171,22 +170,33 @@ func setupConnection(image, user, passwd string) (IVBSSession, error) {
 	
 	conn.Write(dataSlice)
 	// Get reply
-	conn.Read(ivbs_slice)
+	conn.Read(ivbs_slice) // TODO Make sure reply is OK
 	
+	session := IVBSSession{
+							conn, ivbs_reply.SessionId,
+							image, user, passwd,
+							make(chan []byte),
+							make(chan IVBSResponse, MAX_CH_BUFF),
+							make(chan bool),
+							file,
+							""
+	}
 	
+	// Start serving network data and return the session
+	go IOHandler(session)
 	return session, nil
 	
 	
 }
 
 // Server thread
-func server(socket_fd int, quitCh chan int, nbd_path string, nbd_file *os.File) {
+func server(session IVBSSession) {
 	/*request := new(nbd.Nbd_request)
 	reply := new(nbd.Nbd_reply)
 	_ = reply
 	_ = request*/
 	
-	nbd_fd := nbd_file.Fd()
+	nbd_fd := session.NbdFile.Fd()
 	defer nbd_file.Close()
 	
 	session, err := setupConnection("temp.img", "foo", "bar")
@@ -271,7 +281,7 @@ func main() {
 	// Dat thread
 	//go client(nbd_fd, fd[CLIENT_SOCKET])
 	//fmt.Println("Server..")
-	go server(fd[SERVER_SOCKET], quitCh, nbd_path, nbd_file)
+	//go server(fd[SERVER_SOCKET], quitCh, nbd_path, nbd_file)
 	
 	time.Sleep(2 * time.Second)
 	
