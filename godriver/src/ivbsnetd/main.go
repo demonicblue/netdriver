@@ -220,7 +220,7 @@ func IOHandler(session IVBSSession) {
 	
 }
 
-func setupConnection(image, user, passwd string) (IVBSSession, error) {
+func setupConnection(image, user, passwd, nbd_path string) (IVBSSession, error) {
 	fmt.Println("Setting up connection to 127.0.0.1:3033")
 	// Set up connection to IVBS
 	conn, err := net.Dial("tcp", firstIVBSProxy)
@@ -253,14 +253,26 @@ func setupConnection(image, user, passwd string) (IVBSSession, error) {
 	// Get reply
 	conn.Read(ivbs_slice) // TODO Make sure reply is OK
 	
+	fd, err := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_STREAM, 0) // Inter-process, client-server communication
+	if(err != nil) {
+		fmt.Printf("socketpair() failed with error: %g", err)
+	}
+	_ = fd
+	
+	nbd_file, err := os.OpenFile(nbd_path, os.O_RDWR, 0666)
+	if(err != nil) {
+		fmt.Printf("Tried opening %s with error: %g\nExiting..\n", nbd_path, err)
+		os.Exit(0)
+	}
+	
 	session := IVBSSession{
 							conn, ivbs_reply.SessionId,
 							image, user, passwd,
 							make(chan []byte),
 							make(chan IVBSResponse, MAX_CH_BUFF),
 							make(chan bool),
-							file,
-							""
+							nbd_file,
+							"",
 	}
 	
 	// Start serving network data and return the session
@@ -277,15 +289,8 @@ func server(session IVBSSession) {
 	_ = reply
 	_ = request*/
 	
-	nbd_fd := session.NbdFile.Fd()
-	defer nbd_file.Close()
-	
-	session, err := setupConnection("temp.img", "foo", "bar")
-	_ = session
-	if err != nil {
-		fmt.Println("Could not connect to IVBS: &g", err)
-		return
-	}
+	//nbd_fd := session.NbdFile.Fd()
+	//defer nbd_file.Close()
 	
 	
 	
@@ -307,7 +312,7 @@ func server(session IVBSSession) {
 		_ = len
 		
 		break*/
-		select {
+		/*select {
 		case <-quitCh:
 			fmt.Println("Trying to disconnect..")
 			return
@@ -320,7 +325,7 @@ func server(session IVBSSession) {
 		default:
 			fmt.Println("Waiting..")
 			time.Sleep(1000 * time.Millisecond)
-		}
+		}*/
 	}
 }
 
@@ -360,8 +365,6 @@ func main() {
 	}
 	_ = nbd_file.Fd()
 	
-	quitCh := make(chan int)
-	
 	// Dat thread
 	//go client(nbd_fd, fd[CLIENT_SOCKET])
 	//fmt.Println("Server..")
@@ -388,8 +391,6 @@ func main() {
 	fmt.Println("HTTP-Server shutting down...")
 
 	time.Sleep(5 * time.Second)
-	
-	quitCh <- 0
 	
 	//disconnect(nbd_path, nbd_fd)
 	
