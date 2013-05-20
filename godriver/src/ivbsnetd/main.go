@@ -88,6 +88,10 @@ func HttpRootHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			break
 
+		case "check":
+			fmt.Fprintln(w, "HTTP-Server is online.")
+			break
+
 		case "unmount":
 			//TODO Real unmounting of NBD-devices
 			targetNBD := r.Form["nbd"][0]
