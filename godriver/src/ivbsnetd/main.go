@@ -46,6 +46,11 @@ func HttpCheckHealthHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func HttpRootHandler(w http.ResponseWriter, r *http.Request) {
+	
+	if r.ContentLength <= 0 {
+		return
+	}
+	
 	err := r.ParseForm()
 	if err != nil {
 		fmt.Println("Error:%g", err)
@@ -354,7 +359,7 @@ func main() {
 	
 	// Setup flags
 	flag.StringVar(&nbd_path, "n", "/dev/nbd5", "Path to NBD device")
-	flag.StringVar(&server, "c", "localhost:12345", "Address for the HTTP-Server")
+	flag.StringVar(&server, "c", ":8080", "Address for the HTTP-Server")
 	flag.IntVar(&nrDevices, "d", 50, "Number of NBD-devices")
 	flag.Parse()
 	
