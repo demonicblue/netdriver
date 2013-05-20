@@ -30,6 +30,8 @@ const (
     STATUS_EXPIRED           = 14
 )
 
+const LEN_HEADER_PACKET = 48
+
 type IvbsLogin struct {
     Name         string
     PasswordHash string
