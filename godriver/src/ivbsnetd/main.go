@@ -138,7 +138,7 @@ func client(session IVBSSession) {
 	
 }
 
-const firstIVBSProxy string = "127.0.0.1:3033"
+const firstIVBSProxy string = "10.46.1.128:11417"
 
 const MAX_CH_BUFF = 20
 
@@ -225,12 +225,15 @@ func IOHandler(session IVBSSession) {
 }
 
 func setupConnection(image, user, passwd, nbd_path string) (IVBSSession, error) {
-	fmt.Println("Setting up connection to 127.0.0.1:3033")
+	fmt.Println("Setting up connection to "+firstIVBSProxy)
 	// Set up connection to IVBS
 	conn, err := net.Dial("tcp", firstIVBSProxy)
-	if err != nil {
+	if nerr, ok := err.(net.Error); ok {
+		fmt.Print(nerr.Error())
+		return IVBSSession{}, err
+	} else if err != nil {
 		fmt.Printf("Connection failed: %g\n", err)
-		//return
+		return IVBSSession{}, err
 	}
 	
 	ivbs_slice := make([]byte, 45)
@@ -242,8 +245,20 @@ func setupConnection(image, user, passwd, nbd_path string) (IVBSSession, error) 
 		//return
 	}
 	
+	session := IVBSSession{
+							conn, ivbs_reply.SessionId,
+							image, user, passwd,
+							make(chan []byte),
+							make(chan IVBSResponse, MAX_CH_BUFF),
+							make(chan bool),
+							nil,
+							nbd_path,
+							[2]int{0, 0},
+	}
+	
 	packet := new(ivbs.IvbsPacket)
 	packet.Op = ivbs.OP_LOGIN
+	packet.Sequence = 1
 	packet.DataLength = ivbs.LEN_USERNAME + ivbs.LEN_PASSWORD_HASH
 	
 	loginPacket := new(ivbs.IvbsLogin)
@@ -257,28 +272,23 @@ func setupConnection(image, user, passwd, nbd_path string) (IVBSSession, error) 
 	// Get reply
 	conn.Read(ivbs_slice) // TODO Make sure reply is OK
 	
+	ivbs_reply = ivbs.IvbsSliceToStruct(ivbs_slice)
+	fmt.Printf("Response: %d, %d\n", ivbs_reply.Sequence, ivbs_reply.Op)
+	os.Exit(0)
+	
+	
 	fd, err := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_STREAM, 0) // Inter-process, client-server communication
 	if(err != nil) {
 		fmt.Printf("socketpair() failed with error: %g", err)
 	}
-	_ = fd
+	session.Fd = fd
 	
 	nbd_file, err := os.OpenFile(nbd_path, os.O_RDWR, 0666)
 	if(err != nil) {
 		fmt.Printf("Tried opening %s with error: %g\nExiting..\n", nbd_path, err)
 		os.Exit(0)
 	}
-	
-	session := IVBSSession{
-							conn, ivbs_reply.SessionId,
-							image, user, passwd,
-							make(chan []byte),
-							make(chan IVBSResponse, MAX_CH_BUFF),
-							make(chan bool),
-							nbd_file,
-							"",
-							fd,
-	}
+	session.NbdFile = nbd_file
 	
 	// Start serving network data and return the session
 	go IOHandler(session)
@@ -353,8 +363,12 @@ func main() {
 
 	var nbd_path, server string
 	var nrDevices int
+	var testUser, testPasswd string
 	
 	// Setup flags
+	flag.StringVar(&testUser, "u", "", "Username")
+	flag.StringVar(&testPasswd, "p", "", "Password")
+	
 	flag.StringVar(&nbd_path, "n", "/dev/nbd5", "Path to NBD device")
 	flag.StringVar(&server, "c", "localhost:12345", "Address for the HTTP-Server")
 	flag.IntVar(&nrDevices, "d", 50, "Number of NBD-devices")
@@ -376,6 +390,7 @@ func main() {
 	//go client(nbd_fd, fd[CLIENT_SOCKET])
 	//fmt.Println("Server..")
 	//go server(fd[SERVER_SOCKET], quitCh, nbd_path, nbd_file)
+	setupConnection("exjobb-test", testUser, testPasswd, nbd_path)
 	
 	fmt.Println("HTTP-Server starting on", server)
 
