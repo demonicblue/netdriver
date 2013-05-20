@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"net"
 	"flag"
 //	"strings"
 )
@@ -17,13 +16,21 @@ const(
 	 slash = "/"
 )
 
-var server string
+var server, serverAdress string
 
 func checkConnection() bool{
-	if _, err := net.Dial("tcp", server); err != nil{
-		fmt.Println("HTTP-server is offline.")
-		return false
-	}
+	values := make(url.Values)
+	values.Set("command", "check")
+
+	resp, err := http.PostForm(serverAdress, values)
+
+    if err != nil {
+            fmt.Println("HTTP-server is offline.")
+            return false
+    }
+
+    readResponse(resp)
+
 	return true
 }
 
@@ -54,7 +61,7 @@ func main(){
 
 	flag.StringVar(&server, "c", "localhost:12345", "IP-address to HTTP-server")
 	flag.Parse()
-	serverAdress := httpString+server+slash //adds http:// and / to the serverstring
+	serverAdress = httpString+server+slash //adds http:// and / to the serverstring
 
 	for{
 		_, err := fmt.Scan(&cmd)
@@ -96,6 +103,10 @@ func main(){
 				break
 
 			case "unmount":
+				if checkConnection() != true {
+					break
+				}
+
 				fmt.Println("Type in your target NBD-device to unmount")
 				_, _ = fmt.Scanln(&targetNBD)
 				
@@ -161,9 +172,7 @@ func main(){
 				break
 
 			case "check":
-				if checkConnection(){
-					fmt.Println("HTTP-server on "+server+" is online.")
-				}
+				checkConnection()
 				break
 
 			case "help":
