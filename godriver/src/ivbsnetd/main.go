@@ -183,7 +183,7 @@ func IOHandler(session IVBSSession) {
 	}(session)
 	
 	
-	data := make([]byte, 45)// Header packet
+	data := make([]byte, ivbs.LEN_HEADER_PACKET)// Header packet
 	var moreData []byte 	//TODO Make before loop to save resources?
 	quitIO := false
 	
@@ -236,7 +236,7 @@ func setupConnection(image, user, passwd, nbd_path string) (IVBSSession, error) 
 		return IVBSSession{}, err
 	}
 	
-	ivbs_slice := make([]byte, 45)
+	ivbs_slice := make([]byte, ivbs.LEN_HEADER_PACKET)
 	conn.Read(ivbs_slice)
 	ivbs_reply := ivbs.IvbsSliceToStruct(ivbs_slice)
 	
@@ -244,6 +244,8 @@ func setupConnection(image, user, passwd, nbd_path string) (IVBSSession, error) 
 		fmt.Println("Error, received: %d", ivbs_reply.Op)
 		//return
 	}
+	
+	fmt.Println(ivbs_reply.DataLength)
 	
 	session := IVBSSession{
 							conn, ivbs_reply.SessionId,

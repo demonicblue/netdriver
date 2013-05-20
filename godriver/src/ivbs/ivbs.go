@@ -42,19 +42,19 @@ const LEN_PASSWORD_HASH = 128
 type IvbsPacket struct {
 	SessionId [32]byte
 	Op uint32
-	Status int8
+	Status uint32
 	DataLength uint32
 	Sequence uint32
 }
 
 func IvbsStructToSlice(packet *IvbsPacket) ([]byte) {
-	data := make([]byte, 45)
+	data := make([]byte, LEN_HEADER_PACKET)
 	
 	copy(data[:32], packet.SessionId[:])
 	binary.BigEndian.PutUint32(data[32:36], packet.Op)
-	data[36] = byte(packet.Status)
-	binary.BigEndian.PutUint32(data[37:41], packet.DataLength)
-	binary.BigEndian.PutUint32(data[41:], packet.Sequence)
+	binary.BigEndian.PutUint32(data[36:40], packet.Status)
+	binary.BigEndian.PutUint32(data[40:44], packet.DataLength)
+	binary.BigEndian.PutUint32(data[44:48], packet.Sequence)
 	
 	return data
 }
@@ -73,9 +73,9 @@ func IvbsSliceToStruct(data []byte) (*IvbsPacket) {
 	
 	copy(packet.SessionId[:], data[:32])
 	packet.Op = binary.BigEndian.Uint32(data[32:36])
-	packet.Status = int8(data[36])
-	packet.DataLength = binary.BigEndian.Uint32(data[37:41])
-	packet.Sequence = binary.BigEndian.Uint32(data[41:45])
+	packet.Status = binary.BigEndian.Uint32(data[36:40])
+	packet.DataLength = binary.BigEndian.Uint32(data[40:44])
+	packet.Sequence = binary.BigEndian.Uint32(data[44:48])
 	
 	return packet
 }
