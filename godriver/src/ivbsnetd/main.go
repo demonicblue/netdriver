@@ -29,6 +29,8 @@ const (
 	NETD_DISC	= iota
 )
 
+var testUser, testPasswd string
+
 // Switch byte-order
 func ntohl(v uint32) uint32 {
 	return uint32(byte(v >> 24)) | uint32(byte(v >> 16))<<8 | uint32(byte(v >> 8))<<16 | uint32(byte(v))<<24
@@ -75,25 +77,30 @@ func HttpRootHandler(w http.ResponseWriter, r *http.Request) {
 
 		case "mount":
 			//TODO Real mounting to NBD-devices with real images
-			targetNBD := r.Form["nbd"][0]
-			targetImg := r.Form["target"][0]
-			if strings.Contains(targetNBD, "/dev/nbd"){
-				for i:=0; i<len(lista); i++{
-					if lista[i] == targetNBD{
-						listm[lista[i]] = targetImg
-						lista[i] = ""
-						fmt.Fprintln(w, "Successfully mounted "+targetImg+" to "+targetNBD+"\n")
-						return
+				targetNBD := r.Form["nbd"][0]
+				targetImg := r.Form["target"][0]
+				if strings.Contains(targetNBD, "/dev/nbd"){
+					for i:=0; i<len(lista); i++{
+						if lista[i] == targetNBD{
+							
+							if _, err := setupConnection(targetImg, testUser, testPasswd, targetNBD); err != nil{
+								break
+							}
+							
+							listm[lista[i]] = targetImg
+							lista[i] = ""
+							fmt.Fprintln(w, "Successfully mounted "+targetImg+" to "+targetNBD+"\n")
+							return
+						}
+					}
+					for key, value := range lista{
+						if value != ""{
+							listm[lista[key]] = targetImg
+							lista[key] = ""
+							break
+						}
 					}
 				}
-				for key, value := range lista{
-					if value != ""{
-						listm[lista[key]] = targetImg
-						lista[key] = ""
-						break
-					}
-				}
-			}
 			break
 
 		case "check":
@@ -387,7 +394,6 @@ func main() {
 
 	var nbd_path, server string
 	var nrDevices int
-	var testUser, testPasswd string
 	
 	// Setup flags
 	flag.StringVar(&testUser, "u", "", "Username")
@@ -448,4 +454,3 @@ func main() {
 	
 	fmt.Println("Ending main")
 }
-
