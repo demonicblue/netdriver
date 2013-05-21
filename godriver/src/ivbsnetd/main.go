@@ -47,7 +47,7 @@ func HttpCheckHealthHandler(w http.ResponseWriter, r *http.Request) {
 
 func HttpRootHandler(w http.ResponseWriter, r *http.Request) {
 	
-	if r.ContentLength <= 0 {
+	if r.ContentLength < 0 {
 		return
 	}
 	
@@ -60,8 +60,8 @@ func HttpRootHandler(w http.ResponseWriter, r *http.Request) {
 
 	switch cmd{
 
-		case "exit":
-			fmt.Fprint(w, "HTTP-Server shutting down...")
+		case "disc":
+			fmt.Fprintln(w, "HTTP-Server shutting down...")
 			httpAlive <- 1
 			break
 
@@ -106,6 +106,7 @@ func HttpRootHandler(w http.ResponseWriter, r *http.Request) {
 			break
 
 		case "lista":
+			fmt.Fprintln(w, "List of all available NBD-devices:")
 			for i:=0; i<len(lista); i++{
 				if lista[i] != ""{
 					fmt.Fprintln(w, lista[i])
@@ -114,6 +115,7 @@ func HttpRootHandler(w http.ResponseWriter, r *http.Request) {
 			break
 
 		case "listm":
+			fmt.Fprintln(w, "List of all mounted NBD-devices:")
 			for key, value := range listm{
 				fmt.Fprintln(w, key+"\t"+value)
 			}
@@ -404,7 +406,7 @@ func main() {
 	//go client(nbd_fd, fd[CLIENT_SOCKET])
 	//fmt.Println("Server..")
 	//go server(fd[SERVER_SOCKET], quitCh, nbd_path, nbd_file)
-	setupConnection("exjobb-test", testUser, testPasswd, nbd_path)
+	//setupConnection("exjobb-test", testUser, testPasswd, nbd_path)
 	
 	fmt.Println("HTTP-Server starting on", server)
 
