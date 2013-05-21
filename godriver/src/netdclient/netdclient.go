@@ -15,8 +15,15 @@ const(
 	 slash = "/"
 )
 
+// Global-variables used within the client
 var server, serverAdress, menu, targetImg, targetNBD string
 
+/*
+ * Sends a POST-form to the HTTP-server
+ * checking the connection-status.
+ *
+ * returns boolean for status
+ */
 func checkConnection() bool{
 	values := make(url.Values)
 	values.Set("command", "check")
@@ -30,6 +37,10 @@ func checkConnection() bool{
 	return true
 }
 
+/*
+ * Takes a Response from the HTTP-server
+ * and prints it out.
+ */
 func readResponse(resp *http.Response){
 	length := resp.ContentLength
 	
@@ -45,6 +56,12 @@ func readResponse(resp *http.Response){
 	fmt.Println("------------------------------------------------")
 }
 
+/*
+ * Takes a command and wraps it to POST-form
+ * then sends it to the HTTP-server.
+ * 
+ * returns Response from HTTP-server
+ */
 func sendRequest(cmd string) *http.Response{
 	values := make(url.Values)
 	values.Set("command", cmd)
@@ -74,9 +91,8 @@ func sendRequest(cmd string) *http.Response{
 
 /*
  * Netdriver-Client main function.
- * Usage: ./netdclient -c ip-address:port
- * Sends PostForms to the HTTP-server to handle the
- * IVBS-Netdriver.
+ * The mainmenu for netdclient, takes a command
+ * and sends the request to the HTTP-server for IVBS-Netdriver.
  */
 func main(){
 	fmt.Println("Netdriver-Client started!")
