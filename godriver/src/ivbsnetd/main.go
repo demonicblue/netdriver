@@ -34,6 +34,9 @@ func ntohl(v uint32) uint32 {
 	return uint32(byte(v >> 24)) | uint32(byte(v >> 16))<<8 | uint32(byte(v >> 8))<<16 | uint32(byte(v))<<24
 }
 
+/*
+ * Handler for HTTP-server to check health-status on a JSON-file.
+ */
 func HttpCheckHealthHandler(w http.ResponseWriter, r *http.Request) {
 	resp, err := http.Get("http://reddit.com/r/golang.json") //insert json-object here
 	if err != nil{
@@ -45,6 +48,11 @@ func HttpCheckHealthHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "<h1>Health Status</h1>\nStatus: %s", resp.Status)
 }
 
+/*
+ * Handler for the HTTP-server, takes commands from netdclient and
+ * mounts, unmounts devices and image-files as well as printing out
+ * available and mounted NBD-devices.
+ */
 func HttpRootHandler(w http.ResponseWriter, r *http.Request) {
 	
 	if r.ContentLength < 0 {
