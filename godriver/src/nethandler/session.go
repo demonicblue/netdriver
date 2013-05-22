@@ -48,6 +48,7 @@ const MAX_CH_BUFF = 20
 
 type IVBSSession struct {
 	Conn net.Conn
+	seqeuence uint32
 	Id []byte
 	Image string
 	Username string
@@ -71,48 +72,70 @@ type IVBSRequest struct {
 	Type uint32
 }
 
-func sendPacket(session IVBSSession, op uint32, data []byte) {
-	
+func (session *IVBSSession) GetSequence() uint32 {
+	session.seqeuence++
+	return session.seqeuence
 }
 
-func IOHandler(session IVBSSession) {
+func (session *IVBSSession) WriteSession(b []byte) {
+	copy(b, session.Id)
+}
+
+func parseGreeting(packet *ivbs.Packet) {
+	// TODO Create this
+}
+
+func IOHandler(session *IVBSSession) {
 	if session.Conn == nil {
 		//TODO Setup new connection
 	}
 	
 	// Sender - receives data on channel and writes to connection
-	go func(session IVBSSession) { //TODO Eliminate and refactor to server thread or improve
+	/*go func(session IVBSSession) { //TODO Eliminate and refactor to server thread or improve
 		data := <- session.SendCh
 		session.Conn.Write(data)
-	}(session)
+	}(session)*/
 	
 	
-	data := make([]byte, ivbs.LEN_HEADER_PACKET)// Header packet
 	//var moreData []byte 	//TODO Make before loop to save resources?
 	quitIO := false
 	
 	
 	for !quitIO {
 		session.Conn.SetReadDeadline(time.Now().Add(10*time.Second)) // Make sure net.Read() doesn't block indefinetley
+
+		data := make([]byte, ivbs.LEN_HEADER_PACKET)// Header packets
 		_, err := session.Conn.Read(data)
 		
 		if nerr, ok := err.(net.Error); ok && nerr.Timeout() {
 			// Received timeout, carry one
+
 		} else if err != nil {
 			// Fatal, maybe reconnect?
 			fmt.Printf("Error: %s\n", err)
 			os.Exit(0)
+
 		} else {
+
 			fmt.Println("Got packet")
+
 			reply := ivbs.IvbsSliceToStruct(data)
+
 			if reply.DataLen > 0 {
 				// Read more data
-				reply.DataSlice = make([]byte, reply.DataLen)
-				session.Conn.Read(reply.DataSlice)
-			} else { 
-				reply.DataSlice = nil
+				reply.DataSlice = make([]byte, ivbs.LEN_HEADER_PACKET + reply.DataLen)
+				copy(reply.DataSlice, data)
+				session.Conn.Read(reply.DataSlice[ivbs.LEN_HEADER_PACKET:])
+
+			} else {
+				// Only header data
+				reply.DataSlice = make([]byte, ivbs.LEN_HEADER_PACKET)
+				copy(reply.DataSlice, data)
+
 			}
+
 			switch reply.Op { // TODO Maybe handle greetings with reconnects
+
 			case ivbs.OP_LIST_PROXIES:
 			case ivbs.OP_READ, ivbs.OP_WRITE:
 				session.ResponseCh <- reply
@@ -149,12 +172,9 @@ func SetupConnection(image, user, passwd, nbd_path string) (IVBSSession, error) 
 		return IVBSSession{}, err
 	}
 	
-	//ivbs_slice := make([]byte, ivbs.LEN_HEADER_PACKET)
-	//conn.Read(ivbs_slice)
-	//ivbs_reply := ivbs.IvbsSliceToStruct(ivbs_slice)
-	
 	session := IVBSSession{
 							conn,
+							0,
 							make([]byte, ivbs.LEN_SESSIONID),
 							image, user, passwd,
 							make(chan []byte),
@@ -165,7 +185,7 @@ func SetupConnection(image, user, passwd, nbd_path string) (IVBSSession, error) 
 							[2]int{0, 0},
 	}
 	
-	go IOHandler(session)
+	go IOHandler(&session)
 	
 	ivbs_reply :=<- session.ResponseCh
 	
@@ -174,35 +194,31 @@ func SetupConnection(image, user, passwd, nbd_path string) (IVBSSession, error) 
 		//return
 	}
 	
-	copy(session.Id, ivbs_reply.SessionId)
-	
-	packet := ivbs.NewPacket()
-	copy(packet.SessionId, session.Id)
-	
-	packet.Op = ivbs.OP_LOGIN
-	packet.Sequence = 1
-	packet.DataLen = ivbs.LEN_USERNAME + ivbs.LEN_PASSWORD_HASH
-	
-	loginPacket := new(ivbs.IvbsLogin)
-	loginPacket.Name = user
-	loginPacket.PasswordHash = passwd
-	
-	dataSlice := ivbs.IvbsStructToSlice(packet)
-	dataSlice = append(dataSlice, ivbs.LoginStructToSlice(loginPacket)...)
-	
-	//fmt.Printf("%x\n", dataSlice[ivbs.LEN_PACKET_HEADER+ivbs.LEN_USERNAME:] )
-	
-	n, err := conn.Write(dataSlice)
+	copy(session.Id, ivbs_reply.SessionId) // Retreive session id from greeting packet
+
+	// Create login packet
+	packet := ivbs.NewLogin(&session, user, passwd)
+
+	n, err := conn.Write(packet.Byteslice())
 	if err != nil {
 		fmt.Printf("Could not write login packet, wrote %d bytes with error: %s\n", n, err)
 	} else {
-		fmt.Printf("Wrote %d bytes without error\n", n)
+		fmt.Printf("Wrote %d bytes login packet without error\n", n)
 	}
+	
 	// Get reply
 	ivbs_reply =<- session.ResponseCh // TODO Make sure reply is OK
 	
-	fmt.Printf("Response seqeuence: %d, Op: %d, status: %d\n", ivbs_reply.Sequence, ivbs_reply.Op, ivbs_reply.Status)
-	os.Exit(0)
+	//fmt.Printf("Response seqeuence: %d, Op: %d, status: %d\n", ivbs_reply.Sequence, ivbs_reply.Op, ivbs_reply.Status)
+	
+	if ivbs_reply.Op != ivbs.OP_LOGIN || ivbs_reply.Status != ivbs.STATUS_OK {
+		os.Exit(0)
+	}
+
+	fmt.Println("Logged in successfully!")
+
+
+
 	
 	
 	fd, err := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_STREAM, 0) // Inter-process, client-server communication
