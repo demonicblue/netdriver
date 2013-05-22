@@ -127,6 +127,23 @@ func main(){
 				}
 				break
 
+			case "test":
+				values := make(url.Values)
+				values.Set("command", "mount")
+				values.Set("nbd", "/dev/nbd0")
+				values.Set("target", "test.img")
+				_, _ = http.PostForm(serverAdress, values)
+				values2 := make(url.Values)
+				values2.Set("command", "mount")
+				values2.Set("nbd", "/dev/nbd1")
+				values2.Set("target", "test2.img")
+				_,_ = http.PostForm(serverAdress, values2)
+				values3 := make(url.Values)
+				values3.Set("command", "listm")
+				resp,_ := http.PostForm(serverAdress, values3)
+				readResponse(resp)
+				break
+
 			case "help":
 				fmt.Println("\nCommands available:")
 				fmt.Println("check \t Checks the status of the HTTP-server")
