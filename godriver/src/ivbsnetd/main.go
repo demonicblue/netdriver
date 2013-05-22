@@ -13,6 +13,7 @@ import(
 	//"strconv"
 	//"strings"
 	"httpserver"
+	"config"
 )
 
 // Capitalized, hush hush
@@ -48,7 +49,7 @@ func main() {
 	flag.IntVar(&nrDevices, "d", 50, "Number of NBD-devices")
 	flag.Parse()
 	
-	
+
 	// Dat thread
 	//go client(nbd_fd, fd[CLIENT_SOCKET])
 	//fmt.Println("Server..")
@@ -56,6 +57,8 @@ func main() {
 	//setupConnection("exjobb-test", testUser, testPasswd, nbd_path)
 	
 	httpAlive := httpserver.SetupHttp(server, nrDevices)
+
+	config.ReadFile()
 
 	<-httpAlive
 
