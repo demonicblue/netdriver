@@ -1,0 +1,13 @@
+{
+	"Mounted":
+				[
+					{
+					"NbdDevice":"/dev/nbd0",
+					"ImageName":"test.img"
+					},
+					{
+					"NbdDevice":"/dev/nbd1",
+					"ImageName":"test2.img"
+					}
+				]	
+}

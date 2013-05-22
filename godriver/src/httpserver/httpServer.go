@@ -21,8 +21,7 @@ type NBDStruct struct {
 }
 
 type JSONStruct struct {
-	Type string
-	Devices []NBDStruct
+	Mounted []NBDStruct
 }
 
 /*
@@ -41,16 +40,14 @@ func HttpCheckHealthHandler(w http.ResponseWriter, r *http.Request) {
  */
  func HttpStatusHandler(w http.ResponseWriter, r *http.Request) {
  	m := JSONStruct{}
- 	m.Type = "Mounted"
  	temp := []NBDStruct{}
  	if checkJSON := r.URL.Path[lenPath:]; strings.Contains(checkJSON, "json") {
  		for key, value := range listm {
  			temp = append(temp, NBDStruct{key, value})
 		}	
-			m.Devices = temp
+			m.Mounted = temp
  			b, _ := json.Marshal(m)
- 			var jsonData = string(b)
-			fmt.Fprintf(w, jsonData)
+			fmt.Fprintf(w, string(b))
  	} else {
  		fmt.Fprintf(w, "Mounted NBD-devices:\n\n")
 		for key, value := range listm {
@@ -98,17 +95,19 @@ func HttpRootHandler(w http.ResponseWriter, r *http.Request) {
 							
 							listm[lista[i]] = targetImg
 							lista[i] = ""
-							fmt.Fprintln(w, "Successfully mounted "+targetImg+" to "+targetNBD+"\n")
+							fmt.Fprintf(w, "Successfully mounted "+targetImg+" to "+targetNBD+"\n")
 							return
 						}
 					}
 					for key, value := range lista{
 						if value != ""{
 							listm[lista[key]] = targetImg
+							fmt.Fprintf(w, "Device "+targetNBD+" is already mounted.\n"+targetImg+" has been mounted to "+lista[key]+" instead.\n")
 							lista[key] = ""
 							break
 						}
 					}
+					fmt.Fprintf(w, "No more devices available!\n")
 				}
 			break
 
@@ -123,7 +122,7 @@ func HttpRootHandler(w http.ResponseWriter, r *http.Request) {
 				if lista[key] == ""{
 					delete(listm, targetNBD)
 					lista[key] = targetNBD
-					fmt.Fprintln(w, "Successfully unmounted "+targetNBD)
+					fmt.Fprint(w, "Successfully unmounted "+targetNBD)
 					break
 				}
 			}
