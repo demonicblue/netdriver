@@ -33,7 +33,7 @@ func HttpCheckHealthHandler(w http.ResponseWriter, r *http.Request) {
  */
 func HttpRootHandler(w http.ResponseWriter, r *http.Request) {
 	
-	if r.ContentLength < 0 {
+	if r.ContentLength <= 0 {
 		return
 	}
 	
