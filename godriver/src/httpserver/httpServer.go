@@ -4,13 +4,26 @@ import (
 	"net/http"
 	"fmt"
 	"strings"
-	"nethandler"
+	//"nethandler"
 	"strconv"
+	"encoding/json"
 )
 
 var httpAlive = make(chan int)
 var lista map[int]string
 var listm map[string]string
+
+const lenPath = len("/status")+1
+
+type NBDStruct struct {
+	NbdDevice string
+	ImageName string
+}
+
+type JSONStruct struct {
+	Type string
+	Devices []NBDStruct
+}
 
 /*
  * Handler for HTTP-server to check health-status on a JSON-file.
@@ -20,11 +33,31 @@ func HttpCheckHealthHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil{
 		fmt.Println("Error: %g", err)
 	}
-	if resp.StatusCode != http.StatusOK{
-		fmt.Println(resp.Status)
-	}
 	fmt.Fprintf(w, "<h1>Health Status</h1>\nStatus: %s", resp.Status)
 }
+
+/*
+ * Handler to list all mounted NBD-devices in a webbrowser.
+ */
+ func HttpStatusHandler(w http.ResponseWriter, r *http.Request) {
+ 	m := JSONStruct{}
+ 	m.Type = "Mounted"
+ 	temp := []NBDStruct{}
+ 	if checkJSON := r.URL.Path[lenPath:]; strings.Contains(checkJSON, "json") {
+ 		for key, value := range listm {
+ 			temp = append(temp, NBDStruct{key, value})
+		}	
+			m.Devices = temp
+ 			b, _ := json.Marshal(m)
+ 			var jsonData = string(b)
+			fmt.Fprintf(w, jsonData)
+ 	} else {
+ 		fmt.Fprintf(w, "Mounted NBD-devices:\n\n")
+		for key, value := range listm {
+			fmt.Fprintln(w, key+"\t"+value+"\n")
+		}
+	}
+ }
 
 /*
  * Handler for the HTTP-server, takes commands from netdclient and
@@ -59,9 +92,9 @@ func HttpRootHandler(w http.ResponseWriter, r *http.Request) {
 					for i:=0; i<len(lista); i++{
 						if lista[i] == targetNBD{
 							
-							if _, err := nethandler.SetupConnection(targetImg, "", "", targetNBD); err != nil{
+							/*if _, err := nethandler.SetupConnection(targetImg, "", "", targetNBD); err != nil{
 								break
-							}
+							}*/
 							
 							listm[lista[i]] = targetImg
 							lista[i] = ""
@@ -127,6 +160,7 @@ func SetupHttp(server string, nrDevices int) (chan int) {
 	}
 
 	http.HandleFunc("/", HttpRootHandler)
+	http.HandleFunc("/status/", HttpStatusHandler)
 	http.HandleFunc("/check-health", HttpCheckHealthHandler)
 
 	go http.ListenAndServe(server, nil)
