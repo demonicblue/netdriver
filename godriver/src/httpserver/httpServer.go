@@ -7,14 +7,26 @@ import (
 	"nethandler"
 	"strconv"
 	"encoding/json"
+	"io/ioutil"
 )
 
 var httpAlive = make(chan int)
-var Lista map[int]string
-var Listm map[string]string
+var AvailableList []string
+var MountedList map[string]string
 var LinkedLogins map[int]nethandler.IVBSSession
 
 const lenPath = len("/status")+1
+
+/*
+ * JSON-struct for client when sending data.
+ */
+type MountStruct struct {
+	Command string
+	Device string
+	Image string
+	User string
+	Pass string
+}
 
 type NBDStruct struct {
 	NbdDevice string
@@ -53,7 +65,7 @@ func HttpCheckHealthHandler(w http.ResponseWriter, r *http.Request) {
  	m := JSONStruct{}
  	temp := []NBDStruct{}
  	if checkJSON := r.URL.Path[lenPath:]; strings.Contains(checkJSON, "json") {
- 		for key, value := range Listm {
+ 		for key, value := range MountedList {
  			temp = append(temp, NBDStruct{key, value})
 		}	
 			m.Mounted = temp
@@ -61,7 +73,7 @@ func HttpCheckHealthHandler(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprintf(w, string(b))
  	} else {
  		fmt.Fprintf(w, "Mounted NBD-devices:\n\n")
-		for key, value := range Listm {
+		for key, value := range MountedList {
 			fmt.Fprintln(w, key+"\t"+value+"\n")
 		}
 	}
@@ -73,79 +85,27 @@ func HttpCheckHealthHandler(w http.ResponseWriter, r *http.Request) {
  * available and mounted NBD-devices.
  */
 func HttpRootHandler(w http.ResponseWriter, r *http.Request) {
-	
-	if r.ContentLength <= 0 {
+	cmd := MountStruct{}
+
+	bs, err := ioutil.ReadAll(r.Body)
+	if err != nil {
 		return
 	}
-	
-	err := r.ParseForm()
-	if err != nil {
-		fmt.Println("Error:%g", err)
-	}
-
-	cmd := r.Form["command"][0]
-
-	switch cmd{
+	_ = json.Unmarshal(bs, &cmd)
+	switch cmd.Command{
+		case "check":
+			fmt.Fprintln(w, "HTTP-Server is online.")
+			break
 
 		case "disc":
 			fmt.Fprintln(w, "HTTP-Server shutting down...")
 			httpAlive <- 1
 			break
 
-		case "mount":
-			//TODO Real mounting to NBD-devices with real images
-				targetNBD := r.Form["nbd"][0]
-				targetImg := r.Form["target"][0]
-				userName := r.Form["user"][0]
-				passWord := r.Form["pass"][0]
-				if strings.Contains(targetNBD, "/dev/nbd"){
-					for i:=0; i<len(Lista); i++{
-						if Lista[i] == targetNBD{
-							
-							LinkedLogins[len(LinkedLogins)+1], err = nethandler.SetupConnection(targetImg, userName, passWord, targetNBD);
-							if err != nil{
-								fmt.Println("Error: ",err)
-								break
-							}
-
-							AddToMountList(targetNBD, targetImg)
-							fmt.Fprintf(w, "Successfully mounted "+targetImg+" to "+targetNBD+"\n"+userName+" "+passWord+"\n")
-							return
-						}
-					}
-					for _, value := range Lista{
-						if value != ""{
-							AddToMountList(value, targetImg)
-							fmt.Fprintf(w, "Device "+targetNBD+" is already mounted.\n"+targetImg+" has been mounted to "+value+" instead.\n")
-							break
-						}
-					}
-					fmt.Fprintf(w, "No more devices available!\n")
-				}
-				fmt.Fprintf(w, "Specified device not recognised.")
-			break
-
-		case "check":
-			fmt.Fprintln(w, "HTTP-Server is online.")
-			break
-
-		case "unmount":
-			//TODO Real unmounting of NBD-devices
-			targetNBD := r.Form["nbd"][0]
-			for key, _ := range Lista {
-				if Lista[key] == ""{
-					delete(Listm, targetNBD)
-					Lista[key] = targetNBD
-					fmt.Fprint(w, "Successfully unmounted "+targetNBD)
-					break
-				}
-			}
-			break
-
 		case "lista":
 			fmt.Fprintln(w, "List of all available NBD-devices:")
-			for _, value := range Lista{
-				if value != ""{
+			for key, value := range AvailableList{
+				if AvailableList[key] != ""{
 					fmt.Fprintln(w, value)
 				}
 			}
@@ -153,20 +113,59 @@ func HttpRootHandler(w http.ResponseWriter, r *http.Request) {
 
 		case "listm":
 			fmt.Fprintln(w, "List of all mounted NBD-devices:")
-			for key, value := range Listm{
+			for key, value := range MountedList{
 				fmt.Fprintln(w, key+"\t"+value)
 			}
 			break
 
+		case "mount":
+			if strings.Contains(cmd.Device, "/dev/nbd"){
+				for i:=0; i<len(AvailableList); i++{
+					if AvailableList[i] == cmd.Device{
+						
+						LinkedLogins[len(LinkedLogins)+1], err = nethandler.SetupConnection(cmd.Image, cmd.User, cmd.Pass, cmd.Device);
+						if err != nil{
+							fmt.Println("Error: ",err)
+							break
+						}
+
+						AddToMountList(cmd.Device, cmd.Image)
+						fmt.Fprintf(w, "Successfully mounted "+cmd.Image+" to "+cmd.Device+"\n"+cmd.User+" "+cmd.Pass+"\n")
+						return
+					}
+				}
+				for _, value := range AvailableList{
+					if value != ""{
+						AddToMountList(value, cmd.Image)
+						fmt.Fprintf(w, "Device "+cmd.Device+" is already mounted.\n"+cmd.Image+" has been mounted to "+value+" instead.\n")
+						break
+					}
+				}
+				fmt.Fprintf(w, "No more devices available!\n")
+			}
+			fmt.Fprintf(w, "Specified device not recognised.")
+			break
+
+		case "unmount":
+			//TODO Real unmounting of NBD-devices
+			targetNBD := r.Form["nbd"][0]
+			for key, _ := range AvailableList {
+				if AvailableList[key] == ""{
+					delete(MountedList, targetNBD)
+					AvailableList[key] = targetNBD
+					fmt.Fprint(w, "Successfully unmounted "+targetNBD)
+					break
+				}
+			}
+			break
 	}
-	return
 }
 
 func AddToMountList(nbd, img string){
-	Listm[nbd] = img
-	for key, value := range Lista{
+	MountedList[nbd] = img
+	for key, value := range AvailableList{
 		if value == nbd{
-			Lista[key] = ""
+			AvailableList[key] = ""
 			break
 		}
 	}
@@ -175,12 +174,12 @@ func AddToMountList(nbd, img string){
 func SetupHttp(server string, nrDevices int) (chan int) {
 	fmt.Println("HTTP-Server starting on", server)
 
-	Lista = make(map[int]string)
-	Listm = make(map[string]string)
+	AvailableList = make([]string, nrDevices)
+	MountedList = make(map[string]string)
 	LinkedLogins = make(map[int]nethandler.IVBSSession)
 
 	for i:=0; i<nrDevices; i++{
-		Lista[i] = ("/dev/nbd"+strconv.Itoa(i))
+		AvailableList[i] = ("/dev/nbd"+strconv.Itoa(i))
 	}
 
 	http.HandleFunc("/", HttpRootHandler)
