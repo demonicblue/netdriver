@@ -5,6 +5,9 @@ import (
 	"net/http"
 	"net/url"
 	"flag"
+	"encoding/json"
+	"strings"
+	"httpserver"
 )
 
 /*
@@ -54,6 +57,32 @@ func readResponse(resp *http.Response){
 	fmt.Print(string(temp))
 	
 	fmt.Println("------------------------------------------------")
+}
+
+func sendJSONRequest(cmd string) *http.Response{
+	Cmd := httpserver.MountStruct{}
+	Cmd.Command = cmd
+
+	if cmd == "mount" || cmd == "unmount" {
+		fmt.Println("Type in your target NBD-device")
+		_, _ = fmt.Scan(&Cmd.Device)
+
+		if cmd == "mount" {
+			fmt.Println("Type in your target image for",targetNBD)
+			_, _ = fmt.Scan(&Cmd.Image)
+			fmt.Println("Type in your username")
+			_, _ = fmt.Scan(&Cmd.User)
+			fmt.Println("Type in your password")
+			_, _ = fmt.Scan(&Cmd.Pass)
+		}
+	}
+
+	b, _ := json.Marshal(Cmd)
+	x := strings.NewReader(string(b)) 
+	resp, _ := http.Post(serverAdress+"nmount", "application/json", x)
+	return resp
+
+
 }
 
 /*
@@ -120,8 +149,9 @@ func main(){
 				if checkConnection() != true {
 					break
 				}
-		        resp := sendRequest(menu)
-		        readResponse(resp)
+				resp := sendJSONRequest(menu)
+		       //resp := sendRequest(menu)
+		       	readResponse(resp)
 				break
 
 			case "check":
