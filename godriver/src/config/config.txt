@@ -1,13 +1,22 @@
 {
-	"Mounted":
-				[
-					{
-					"NbdDevice":"/dev/nbd0",
-					"ImageName":"test.img"
-					},
-					{
-					"NbdDevice":"/dev/nbd1",
-					"ImageName":"test2.img"
-					}
-				]	
+    "Mounted": [
+        {
+            "NbdDevice": "/dev/nbd0",
+            "ImageName": "test.img"
+        },
+        {
+            "NbdDevice": "/dev/nbd1",
+            "ImageName": "test2.img"
+        }
+    ],
+    "User": [
+        {
+            "Username": "exjobb",
+            "Password": "chalmers"
+        },
+        {
+            "Username": "exjobb",
+            "Password": "chalmers"
+        }
+    ]
 }

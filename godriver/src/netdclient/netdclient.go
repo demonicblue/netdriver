@@ -16,7 +16,7 @@ const(
 )
 
 // Global-variables used within the client
-var server, serverAdress, menu, targetImg, targetNBD string
+var server, serverAdress, menu, targetImg, targetNBD, userName, passWord string
 
 /*
  * Sends a POST-form to the HTTP-server
@@ -72,11 +72,15 @@ func sendRequest(cmd string) *http.Response{
 		
 		if cmd == "mount" {
 		fmt.Println("Type in your target image for",targetNBD)
-		_, err := fmt.Scan(&targetImg)
-			if err != nil {
-				fmt.Println("%g", err)
-			}
+		_, _ = fmt.Scan(&targetImg)
+		fmt.Println("Type in your username")
+		_, _ = fmt.Scan(&userName)
+		fmt.Println("Type in your password")
+		_, _ = fmt.Scan(&passWord)
+			
 		values.Set("target", targetImg)
+		values.Set("user", userName)
+		values.Set("pass", passWord)
 		}
 		values.Set("nbd", targetNBD)
 	}
@@ -125,23 +129,6 @@ func main(){
 					fmt.Println("HTTP-server is online.")
 					fmt.Println("------------------------------------------------")
 				}
-				break
-
-			case "test":
-				values := make(url.Values)
-				values.Set("command", "mount")
-				values.Set("nbd", "/dev/nbd0")
-				values.Set("target", "test.img")
-				_, _ = http.PostForm(serverAdress, values)
-				values2 := make(url.Values)
-				values2.Set("command", "mount")
-				values2.Set("nbd", "/dev/nbd1")
-				values2.Set("target", "test2.img")
-				_,_ = http.PostForm(serverAdress, values2)
-				values3 := make(url.Values)
-				values3.Set("command", "listm")
-				resp,_ := http.PostForm(serverAdress, values3)
-				readResponse(resp)
 				break
 
 			case "help":

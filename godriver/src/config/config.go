@@ -5,36 +5,43 @@ import (
 	"fmt"
 	"httpserver"
 	"encoding/json"
-	"net/url"
-	"net/http"
+	//"nethandler"
 )
 
 var configFile = "/home/alexander/netdriver/godriver/src/config/config.txt"
 
 func ReadFile(){
-	m := httpserver.JSONStruct{}
+	m := httpserver.ConfigStruct{}
 	b, err := ioutil.ReadFile(configFile)
+
 	if err != nil {
 		fmt.Println("Error: ", err)
 		return
 	}
-	_ = json.Unmarshal(b, &m)
-	for _, value := range m.Mounted{
-		values := make(url.Values)
-		values.Set("command", "mount")
-		values.Set("nbd", value.NbdDevice)
-		values.Set("target", value.ImageName)
 
-		resp, err := http.PostForm("http://localhost:8080/", values)
+	_ = json.Unmarshal(b, &m)
+
+	fmt.Println("config.txt found, will begin setup...")
+
+	for key, value := range m.Mounted {
+		temp := m.User[key]
+		fmt.Println(value.ImageName, temp.Username, temp.Password, value.NbdDevice)
+
+		httpserver.Listm[value.NbdDevice] = value.ImageName
 		
-		if err != nil{
-			fmt.Println("Error: ", err)
+		/* session, err := nethandler.SetupConnection(value.ImageName, value2.Username, value2.Password, value.NbdDevice)
+		if err != nil {
+			fmt.Println("Error: %g", err)
 		}
-		
-		length := resp.ContentLength
-		temp := make([]byte, length)
-		resp.Body.Read(temp)
-		fmt.Print(string(temp))
-		fmt.Println("------------------------------------------------")
+
+		httpserver.Listm[value.NbdDevice] = value.ImageName
+
+		httpserver.LinkedLogins.Id = session.Id
+		httpserver.LinkedLogins.Image = session.Image
+		httpserver.LinkedLogins.Username = session.Username
+		httpserver.LinkedLogins.Passwd = session.Passwd
+		httpserver.LinkedLogins.NbdPath = session.NbdPath
+		*/
 	}
+	fmt.Println("Setup complete!")
 }
