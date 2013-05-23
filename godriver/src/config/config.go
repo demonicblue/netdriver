@@ -9,7 +9,10 @@ import (
 )
 
 var configFile = "/home/alexander/netdriver/godriver/src/config/config.txt"
-
+/*
+ * Reads a configfile that needs to be specified in the variable above.
+ * Then mounts the specified images to their corresponding device.
+ */
 func ReadFile(){
 	m := httpserver.ConfigStruct{}
 	b, err := ioutil.ReadFile(configFile)
@@ -25,9 +28,9 @@ func ReadFile(){
 
 	for key, value := range m.Mounted {
 		temp := m.User[key]
-		fmt.Println(value.ImageName, temp.Username, temp.Password, value.NbdDevice)
+		fmt.Println("Mounting", value.ImageName, "for user", temp.Username, "with password", temp.Password, "to device", value.NbdDevice,".")
 
-		httpserver.AddToMountList(value.NbdDevice, value.ImageName)
+		httpserver.AddToMountedList(value.NbdDevice, value.ImageName)
 		
 		httpserver.LinkedLogins[len(httpserver.LinkedLogins)+1], err = nethandler.SetupConnection(value.ImageName, temp.Username, temp.Password, value.NbdDevice)
 		if err != nil {
