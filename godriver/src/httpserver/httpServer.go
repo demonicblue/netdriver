@@ -18,31 +18,39 @@ var LinkedLogins map[int]nethandler.IVBSSession
 const lenPath = len("/status")+1
 
 /*
- * JSON-struct for client when sending data.
+ * JSON-struct for client when sending commands
  */
-type MountStruct struct {
+type CommandStruct struct {
 	Command string
 	Device string
 	Image string
 	User string
 	Pass string
 }
-
+/*
+ * Struct for a NBDDevice
+ */
 type NBDStruct struct {
 	NbdDevice string
 	ImageName string
 }
-
+/*
+ * Struct for a user
+ */
 type UserStruct struct{
 	Username string
 	Password string
 }
-
+/*
+ * Struct used by config
+ */
 type ConfigStruct struct{
 	Mounted []NBDStruct
 	User 	[]UserStruct
 }
-
+/*
+ * Struct used when printing out JSON-data in the status-handle.
+ */
 type JSONStruct struct {
 	Mounted []NBDStruct
 }
@@ -85,7 +93,7 @@ func HttpCheckHealthHandler(w http.ResponseWriter, r *http.Request) {
  * available and mounted NBD-devices.
  */
 func HttpRootHandler(w http.ResponseWriter, r *http.Request) {
-	cmd := MountStruct{}
+	cmd := CommandStruct{}
 
 	bs, err := ioutil.ReadAll(r.Body)
 	if err != nil {
@@ -129,21 +137,22 @@ func HttpRootHandler(w http.ResponseWriter, r *http.Request) {
 							break
 						}
 
-						AddToMountList(cmd.Device, cmd.Image)
+						AddToMountedList(cmd.Device, cmd.Image)
 						fmt.Fprintf(w, "Successfully mounted "+cmd.Image+" to "+cmd.Device+"\n"+cmd.User+" "+cmd.Pass+"\n")
 						return
 					}
 				}
 				for _, value := range AvailableList{
 					if value != ""{
-						AddToMountList(value, cmd.Image)
+						AddToMountedList(value, cmd.Image)
 						fmt.Fprintf(w, "Device "+cmd.Device+" is already mounted.\n"+cmd.Image+" has been mounted to "+value+" instead.\n")
-						break
+						return
 					}
 				}
 				fmt.Fprintf(w, "No more devices available!\n")
+			} else {
+				fmt.Fprintf(w, "Specified device not recognised.\n")
 			}
-			fmt.Fprintf(w, "Specified device not recognised.")
 			break
 
 		case "unmount":
@@ -160,7 +169,10 @@ func HttpRootHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func AddToMountList(nbd, img string){
+/*
+ * Help-function to add NBD-device to MountedList
+ */
+func AddToMountedList(nbd, img string){
 	MountedList[nbd] = img
 	for key, value := range AvailableList{
 		if value == nbd{
