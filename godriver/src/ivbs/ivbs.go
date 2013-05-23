@@ -13,6 +13,8 @@ const (
 	OP_READ			uint32 = 300
 	OP_WRITE		uint32 = 301
 
+	OP_ATTACH_TO_IMAGE   uint32 = 200
+
 	OP_LIST_PROXIES	uint32 = 211
 )
 
@@ -122,6 +124,33 @@ func NewLogin(sequence SequenceGetter, name, password string) (packet *Packet) {
 	packet.DataPacket = tmp
 
 	return packet
+}
+
+func NewAttach(sequence SequenceGetter, image string) (packet *Packet) {
+	packet = NewPacket()
+
+	sequence.WriteSession(packet.SessionId[:])
+
+	packet.Op = OP_ATTACH_TO_IMAGE
+	packet.DataLen = LEN_IMAGENAME
+	packet.Sequence = sequence.GetSequence()
+
+	tmp := new(AttachToImage)
+	tmp.Name = image
+
+	packet.DataPacket = tmp
+
+	return packet
+}
+
+func AttachFromSlice(packet *Packet) (attach *AttachToImage) {
+	attach = new(AttachToImage)
+	b := packet.DataSlice[LEN_HEADER_PACKET:]
+
+	attach.Name = string(b[:LEN_IMAGENAME])
+	attach.Size = binary.BigEndian.Uint64(b[LEN_IMAGENAME:LEN_IMAGENAME+8])
+
+	return attach
 }
 
 func (packet *Packet) Byteslice() (data []byte) {
