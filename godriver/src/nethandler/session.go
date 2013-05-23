@@ -144,7 +144,7 @@ func IOHandler(session *IVBSSession) {
 			case ivbs.OP_KEEPALIVE:
 			case ivbs.OP_GREETING:
 				session.ResponseCh <- reply
-			case ivbs.OP_LOGIN:
+			case ivbs.OP_LOGIN, ivbs.OP_ATTACH_TO_IMAGE:
 				session.ResponseCh <- reply
 			default:
 				//Unknown
@@ -219,9 +219,27 @@ func SetupConnection(image, user, passwd, nbd_path string) (IVBSSession, error) 
 
 	fmt.Println("Logged in successfully!")
 
+	packet = ivbs.NewAttach(&session, image)
 
+	n, err = conn.Write(packet.Byteslice())
+	if err != nil {
+		fmt.Printf("Could not write attach packet, wrote %d bytes with error: %s\n", n, err)
+	} else {
+		fmt.Printf("Wrote %d bytes attach packet without error\n", n)
+	}
 
-	
+	ivbs_reply =<- session.ResponseCh
+
+	if ivbs_reply.Op != ivbs.OP_ATTACH_TO_IMAGE || ivbs_reply.Status != ivbs.STATUS_OK {
+		fmt.Printf("Received error in attach packet. OP: %d, Status: %d\n", ivbs_reply.Op, ivbs_reply.Status)
+		os.Exit(0)
+	}
+
+	//TODO Save image size
+	attach := ivbs.AttachFromSlice(ivbs_reply)
+	session.Size = attach.Size
+	fmt.Printf("Image size: %d byte, %d MB\n", session.Size, session.Size/1024/1024)
+
 	
 	fd, err := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_STREAM, 0) // Inter-process, client-server communication
 	if(err != nil) {
