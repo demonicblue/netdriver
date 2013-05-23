@@ -65,3 +65,12 @@ func Call2(fd uintptr, req, data int) error {
 	}
 	return nil
 }
+
+func CallUint64(fd uintptr, req int, data uint64) error {
+	errno := ioctl.Call(fd, int(ioctl.IO(0xab, int32(req))), uintptr(data))
+	if errno != 0 {
+		err := os.NewSyscallError("SYS_IOCTL", errno)
+		return err
+	}
+	return nil
+}
