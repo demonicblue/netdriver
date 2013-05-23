@@ -34,12 +34,18 @@ const (
 
 const LEN_HEADER_PACKET = 48
 
-type IvbsLogin struct {
-    Name         string
+type Login struct {
+    Name string
+    Password string
     PasswordHash string
 }
 const LEN_USERNAME      = 32
 const LEN_PASSWORD_HASH = 128
+
+const (
+	LEN_IMAGENAME     = 256
+)
+
 const (
 	LEN_SESSIONID     = 32
 	LEN_OP            = 4
@@ -55,13 +61,81 @@ type Packet struct {
 	Status uint32
 	DataLen uint32
 	Sequence uint32
+	DataPacket PacketData
 	DataSlice []byte
+}
+
+type AttachToImage struct {
+	Name string
+	Size uint64
+	ReadOnly bool
+}
+
+type PacketData interface {
+	Write(b []byte) int
+}
+
+type SequenceGetter interface {
+	GetSequence() uint32
+	WriteSession(b []byte)
 }
 
 func NewPacket() (packet *Packet) {
 	packet = new(Packet)
 	packet.SessionId = make([]byte, LEN_SESSIONID)
 	return packet
+}
+
+func (attach *AttachToImage) Write(b []byte) (n int) {
+	n += copy(b[:LEN_IMAGENAME], []byte(attach.Name))
+	return n
+}
+
+func (login *Login) Write(b []byte) (n int) {
+	n += copy(b[:LEN_USERNAME], []byte(login.Name))
+
+	c := sha512.New()
+	c.Write([]byte(login.Password))
+
+	str := fmt.Sprintf("%x", c.Sum(nil))
+
+	n += copy(b[LEN_USERNAME:LEN_USERNAME+LEN_PASSWORD_HASH], []byte(str))
+
+	return n
+}
+
+/*
+*	Create new login packet with all values set, ready for transmission.
+*/
+func NewLogin(sequence SequenceGetter, name, password string) (packet *Packet) {
+	packet = NewPacket()
+
+	sequence.WriteSession(packet.SessionId[:])
+
+	packet.Op = OP_LOGIN
+	packet.DataLen = LEN_USERNAME + LEN_PASSWORD_HASH
+	packet.Sequence = sequence.GetSequence()
+
+	tmp := new(Login)
+	tmp.Name = name
+	tmp.Password = password
+	packet.DataPacket = tmp
+
+	return packet
+}
+
+func (packet *Packet) Byteslice() (data []byte) {
+	data = make([]byte, LEN_HEADER_PACKET + packet.DataLen)
+
+	copy(data[:32], packet.SessionId[:])
+	binary.BigEndian.PutUint32(data[32:36], packet.Op)
+	binary.BigEndian.PutUint32(data[36:40], packet.Status)
+	binary.BigEndian.PutUint32(data[40:44], packet.DataLen)
+	binary.BigEndian.PutUint32(data[44:48], packet.Sequence)
+
+	packet.DataPacket.Write( data[48:] )
+
+	return data
 }
 
 func IvbsStructToSlice(packet *Packet) ([]byte) {
@@ -76,7 +150,7 @@ func IvbsStructToSlice(packet *Packet) ([]byte) {
 	return data
 }
 
-func LoginStructToSlice(packet *IvbsLogin) ([]byte) {
+func LoginStructToSlice(packet *Login) ([]byte) {
 	data := make([]byte, LEN_USERNAME + LEN_PASSWORD_HASH)
 	
 	c := sha512.New()
@@ -103,8 +177,8 @@ func IvbsSliceToStruct(data []byte) (*Packet) {
 	return packet
 }
 
-func LoginSliceToStruct(data []byte) (*IvbsLogin) {
-	packet := new(IvbsLogin)
+func LoginSliceToStruct(data []byte) (*Login) {
+	packet := new(Login)
 	
 	packet.Name = string(data[:LEN_USERNAME])
 	packet.PasswordHash = string(data[LEN_USERNAME:LEN_USERNAME+LEN_PASSWORD_HASH])
