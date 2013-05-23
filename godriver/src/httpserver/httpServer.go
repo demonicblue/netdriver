@@ -148,12 +148,11 @@ func HttpRootHandler(w http.ResponseWriter, r *http.Request) {
 
 		case "unmount":
 			//TODO Real unmounting of NBD-devices
-			targetNBD := r.Form["nbd"][0]
 			for key, _ := range AvailableList {
 				if AvailableList[key] == ""{
-					delete(MountedList, targetNBD)
-					AvailableList[key] = targetNBD
-					fmt.Fprint(w, "Successfully unmounted "+targetNBD)
+					delete(MountedList, cmd.Device)
+					AvailableList[key] = cmd.Device
+					fmt.Fprint(w, "Successfully unmounted "+cmd.Device)
 					break
 				}
 			}
