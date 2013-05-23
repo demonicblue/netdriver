@@ -3,23 +3,14 @@ package main
 import (
 	"fmt"
 	"net/http"
-	"net/url"
 	"flag"
 	"encoding/json"
 	"strings"
 	"httpserver"
 )
 
-/*
- *	Simple string constants for sending POST
- */
-const(
-	 httpString = "http://"
-	 slash = "/"
-)
-
 // Global-variables used within the client
-var server, serverAdress, menu, targetImg, targetNBD, userName, passWord string
+var server, serverAdress, menu string
 
 /*
  * Sends a POST-form to the HTTP-server
@@ -28,10 +19,12 @@ var server, serverAdress, menu, targetImg, targetNBD, userName, passWord string
  * returns boolean for status
  */
 func checkConnection() bool{
-	values := make(url.Values)
-	values.Set("command", "check")
+	Cmd := httpserver.CommandStruct{}
+	Cmd.Command = "check"
 
-	_, err := http.PostForm(serverAdress, values)
+	bytes, _ := json.Marshal(Cmd)
+	JSONData := strings.NewReader(string(bytes)) 
+	_, err := http.Post(serverAdress, "application/json", JSONData)
 
     if err != nil {
             fmt.Println("HTTP-server is offline.")
@@ -51,16 +44,19 @@ func readResponse(resp *http.Response){
 		length = 1024
 	}
 
-	temp := make([]byte, length)
+	slice := make([]byte, length)
 	
-	resp.Body.Read(temp)
-	fmt.Print(string(temp))
+	resp.Body.Read(slice)
+	fmt.Print(string(slice))
 	
 	fmt.Println("------------------------------------------------")
 }
-
+/*
+ * Sends a JSON-request to the HTTP-server with commands
+ * for the server to perform.
+ */
 func sendJSONRequest(cmd string) *http.Response{
-	Cmd := httpserver.MountStruct{}
+	Cmd := httpserver.CommandStruct{}
 	Cmd.Command = cmd
 
 	if cmd == "mount" || cmd == "unmount" {
@@ -68,7 +64,7 @@ func sendJSONRequest(cmd string) *http.Response{
 		_, _ = fmt.Scan(&Cmd.Device)
 
 		if cmd == "mount" {
-			fmt.Println("Type in your target image for",targetNBD)
+			fmt.Println("Type in your target image for",Cmd.Device)
 			_, _ = fmt.Scan(&Cmd.Image)
 			fmt.Println("Type in your username")
 			_, _ = fmt.Scan(&Cmd.User)
@@ -77,49 +73,10 @@ func sendJSONRequest(cmd string) *http.Response{
 		}
 	}
 
-	b, _ := json.Marshal(Cmd)
-	x := strings.NewReader(string(b)) 
-	resp, _ := http.Post(serverAdress+"nmount", "application/json", x)
+	bytes, _ := json.Marshal(Cmd)
+	JSONData := strings.NewReader(string(bytes)) 
+	resp, _ := http.Post(serverAdress, "application/json", JSONData)
 	return resp
-
-
-}
-
-/*
- * Takes a command and wraps it to POST-form
- * then sends it to the HTTP-server.
- * 
- * returns Response from HTTP-server
- */
-func sendRequest(cmd string) *http.Response{
-	values := make(url.Values)
-	values.Set("command", cmd)
-	
-	if cmd == "unmount" || cmd == "mount" {
-		fmt.Println("Type in your target NBD-device")
-		_, _ = fmt.Scan(&targetNBD)
-		
-		if cmd == "mount" {
-		fmt.Println("Type in your target image for",targetNBD)
-		_, _ = fmt.Scan(&targetImg)
-		fmt.Println("Type in your username")
-		_, _ = fmt.Scan(&userName)
-		fmt.Println("Type in your password")
-		_, _ = fmt.Scan(&passWord)
-			
-		values.Set("target", targetImg)
-		values.Set("user", userName)
-		values.Set("pass", passWord)
-		}
-		values.Set("nbd", targetNBD)
-	}
-
-	resp, err := http.PostForm(serverAdress, values)
-
-    if err != nil {
-            fmt.Println("Error: %g",&err)
-    }
-    return resp
 }
 
 /*
@@ -132,7 +89,7 @@ func main(){
 
 	flag.StringVar(&server, "c", "localhost:8080", "IP-address to HTTP-server")
 	flag.Parse()
-	serverAdress = httpString+server+slash //adds http:// and / to the serverstring
+	serverAdress = "http://"+server+"/"
 
 	for{
 		_, err := fmt.Scan(&menu)
@@ -150,7 +107,6 @@ func main(){
 					break
 				}
 				resp := sendJSONRequest(menu)
-		       //resp := sendRequest(menu)
 		       	readResponse(resp)
 				break
 
@@ -173,9 +129,9 @@ func main(){
 				fmt.Println("------------------------------------------------")
 				fmt.Println("-------------------SHORTCUTS--------------------")
 				fmt.Println("------------------------------------------------")
-				fmt.Println("mount <device> <image>\t mounts device to image directly")
-				fmt.Println("unmount <device>\t unmounts device directly")
-				fmt.Println("exit y\t\t\t will exit without prompt")
+				fmt.Println("mount <device> <image> <username> <password>")
+				fmt.Println("unmount <device>")
+				fmt.Println("exit y")
 				fmt.Println("------------------------------------------------")
 				break
 
