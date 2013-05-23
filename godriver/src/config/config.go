@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"httpserver"
 	"encoding/json"
-	//"nethandler"
+	"nethandler"
 )
 
 var configFile = "/home/alexander/netdriver/godriver/src/config/config.txt"
@@ -27,21 +27,12 @@ func ReadFile(){
 		temp := m.User[key]
 		fmt.Println(value.ImageName, temp.Username, temp.Password, value.NbdDevice)
 
-		httpserver.Listm[value.NbdDevice] = value.ImageName
+		httpserver.AddToMountList(value.NbdDevice, value.ImageName)
 		
-		/* session, err := nethandler.SetupConnection(value.ImageName, value2.Username, value2.Password, value.NbdDevice)
+		httpserver.LinkedLogins[len(httpserver.LinkedLogins)+1], err = nethandler.SetupConnection(value.ImageName, temp.Username, temp.Password, value.NbdDevice)
 		if err != nil {
 			fmt.Println("Error: %g", err)
 		}
-
-		httpserver.Listm[value.NbdDevice] = value.ImageName
-
-		httpserver.LinkedLogins.Id = session.Id
-		httpserver.LinkedLogins.Image = session.Image
-		httpserver.LinkedLogins.Username = session.Username
-		httpserver.LinkedLogins.Passwd = session.Passwd
-		httpserver.LinkedLogins.NbdPath = session.NbdPath
-		*/
 	}
 	fmt.Println("Setup complete!")
 }

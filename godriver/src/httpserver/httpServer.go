@@ -10,15 +10,11 @@ import (
 )
 
 var httpAlive = make(chan int)
-var lista map[int]string
+var Lista map[int]string
 var Listm map[string]string
 var LinkedLogins map[int]nethandler.IVBSSession
 
 const lenPath = len("/status")+1
-
-type SessionStruct struct{
-
-}
 
 type NBDStruct struct {
 	NbdDevice string
@@ -103,28 +99,24 @@ func HttpRootHandler(w http.ResponseWriter, r *http.Request) {
 				userName := r.Form["user"][0]
 				passWord := r.Form["pass"][0]
 				if strings.Contains(targetNBD, "/dev/nbd"){
-					for i:=0; i<len(lista); i++{
-						if lista[i] == targetNBD{
+					for i:=0; i<len(Lista); i++{
+						if Lista[i] == targetNBD{
 							
-							/*LinkedLogins, err := nethandler.SetupConnection(targetImg, userName, passWord, targetNBD);
+							LinkedLogins[len(LinkedLogins)+1], err = nethandler.SetupConnection(targetImg, userName, passWord, targetNBD);
 							if err != nil{
 								fmt.Println("Error: ",err)
 								break
 							}
-							*/
-							fmt.Println(LinkedLogins)
 
-							Listm[lista[i]] = targetImg
-							lista[i] = ""
+							AddToMountList(targetNBD, targetImg)
 							fmt.Fprintf(w, "Successfully mounted "+targetImg+" to "+targetNBD+"\n"+userName+" "+passWord+"\n")
 							return
 						}
 					}
-					for key, value := range lista{
+					for _, value := range Lista{
 						if value != ""{
-							Listm[lista[key]] = targetImg
-							fmt.Fprintf(w, "Device "+targetNBD+" is already mounted.\n"+targetImg+" has been mounted to "+lista[key]+" instead.\n")
-							lista[key] = ""
+							AddToMountList(value, targetImg)
+							fmt.Fprintf(w, "Device "+targetNBD+" is already mounted.\n"+targetImg+" has been mounted to "+value+" instead.\n")
 							break
 						}
 					}
@@ -140,10 +132,10 @@ func HttpRootHandler(w http.ResponseWriter, r *http.Request) {
 		case "unmount":
 			//TODO Real unmounting of NBD-devices
 			targetNBD := r.Form["nbd"][0]
-			for key, _ := range lista {
-				if lista[key] == ""{
+			for key, _ := range Lista {
+				if Lista[key] == ""{
 					delete(Listm, targetNBD)
-					lista[key] = targetNBD
+					Lista[key] = targetNBD
 					fmt.Fprint(w, "Successfully unmounted "+targetNBD)
 					break
 				}
@@ -152,9 +144,9 @@ func HttpRootHandler(w http.ResponseWriter, r *http.Request) {
 
 		case "lista":
 			fmt.Fprintln(w, "List of all available NBD-devices:")
-			for i:=0; i<len(lista); i++{
-				if lista[i] != ""{
-					fmt.Fprintln(w, lista[i])
+			for _, value := range Lista{
+				if value != ""{
+					fmt.Fprintln(w, value)
 				}
 			}
 			break
@@ -170,14 +162,25 @@ func HttpRootHandler(w http.ResponseWriter, r *http.Request) {
 	return
 }
 
+func AddToMountList(nbd, img string){
+	Listm[nbd] = img
+	for key, value := range Lista{
+		if value == nbd{
+			Lista[key] = ""
+			break
+		}
+	}
+}
+
 func SetupHttp(server string, nrDevices int) (chan int) {
 	fmt.Println("HTTP-Server starting on", server)
 
-	lista = make(map[int]string)
+	Lista = make(map[int]string)
 	Listm = make(map[string]string)
+	LinkedLogins = make(map[int]nethandler.IVBSSession)
 
 	for i:=0; i<nrDevices; i++{
-		lista[i] = ("/dev/nbd"+strconv.Itoa(i))
+		Lista[i] = ("/dev/nbd"+strconv.Itoa(i))
 	}
 
 	http.HandleFunc("/", HttpRootHandler)
