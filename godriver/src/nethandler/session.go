@@ -14,25 +14,25 @@ import (
 const DATASIZE = 1024*1024*50
 
 // Client thread
-func client(session IVBSSession) {
+func client(session *IVBSSession) {
 	
-	socket_fd := int(session.NbdFile.Fd())
+	socket_fd := session.Fd[0]
 	nbd_fd := session.NbdFile.Fd()
 	
 	fmt.Println("Starting client")
-	if err:= nbd.Call2(nbd_fd, nbd.NBD_SET_SIZE, DATASIZE); err != nil {
-		fmt.Printf("Error setting size: %g", err)
+	if err:= nbd.CallUint64(nbd_fd, nbd.NBD_SET_SIZE, session.Size); err != nil {
+		fmt.Printf("Error setting size: %s", err)
 	}
 	if err:= nbd.Call2(nbd_fd, nbd.NBD_CLEAR_SOCK, 0); err != nil {
-		fmt.Print("Error clearing socket: %g", err)
+		fmt.Printf("Error clearing socket: %s", err)
 	}
 	
 	if err := nbd.Call2(nbd_fd, nbd.NBD_SET_SOCK, socket_fd); err != nil {
-		fmt.Printf("Could not set socket: %g\n", err)
+		fmt.Printf("Could not set socket: %s\n", err)
 	}
 	
 	if err := nbd.Call2(nbd_fd, nbd.NBD_DO_IT, 0); err != nil {
-		fmt.Print("Error starting client: %g\n", err)
+		fmt.Printf("Error starting client: %s\n", err)
 	}
 	
 	fmt.Println("Disconnecting..")
@@ -51,6 +51,7 @@ type IVBSSession struct {
 	seqeuence uint32
 	Id []byte
 	Image string
+	Size uint64
 	Username string
 	Passwd string
 	SendCh chan []byte
@@ -81,8 +82,9 @@ func (session *IVBSSession) WriteSession(b []byte) {
 	copy(b, session.Id)
 }
 
-func parseGreeting(packet *ivbs.Packet) {
-	// TODO Create this
+func parseGreeting(session *IVBSSession, packet *ivbs.Packet) {
+	copy(session.Id, packet.SessionId)
+
 }
 
 func IOHandler(session *IVBSSession) {
@@ -176,7 +178,7 @@ func SetupConnection(image, user, passwd, nbd_path string) (IVBSSession, error) 
 							conn,
 							0,
 							make([]byte, ivbs.LEN_SESSIONID),
-							image, user, passwd,
+							image, 0, user, passwd,
 							make(chan []byte),
 							make(chan *ivbs.Packet, MAX_CH_BUFF),
 							make(chan bool),
@@ -194,7 +196,7 @@ func SetupConnection(image, user, passwd, nbd_path string) (IVBSSession, error) 
 		//return
 	}
 	
-	copy(session.Id, ivbs_reply.SessionId) // Retreive session id from greeting packet
+	parseGreeting(&session, ivbs_reply)
 
 	// Create login packet
 	packet := ivbs.NewLogin(&session, user, passwd)
@@ -205,7 +207,7 @@ func SetupConnection(image, user, passwd, nbd_path string) (IVBSSession, error) 
 	} else {
 		fmt.Printf("Wrote %d bytes login packet without error\n", n)
 	}
-	
+
 	// Get reply
 	ivbs_reply =<- session.ResponseCh // TODO Make sure reply is OK
 	
@@ -235,7 +237,7 @@ func SetupConnection(image, user, passwd, nbd_path string) (IVBSSession, error) 
 	session.NbdFile = nbd_file
 	
 	// Start serving network data and return the session
-	go client(session)
+	go client(&session)
 	
 	return session, nil
 	
