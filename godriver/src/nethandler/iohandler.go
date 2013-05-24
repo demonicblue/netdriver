@@ -41,15 +41,17 @@ func IOHandler(session *IVBSSession) {
 
 		} else {
 
-			fmt.Println("Got packet")
-
 			reply := ivbs.IvbsSliceToStruct(data)
+
+			fmt.Printf("Got packet, op: %d\n", reply.Op)
+			reply.Debug()
 
 			if reply.DataLen > 0 {
 				// Read more data
 				reply.DataSlice = make([]byte, ivbs.LEN_HEADER_PACKET + reply.DataLen)
 				copy(reply.DataSlice, data)
-				session.Conn.Read(reply.DataSlice[ivbs.LEN_HEADER_PACKET:])
+				n, _ := session.Conn.Read(reply.DataSlice[ivbs.LEN_HEADER_PACKET:])
+				fmt.Printf("Read %d bytes of extra data from ivbs.\n", n)
 
 			} else {
 				// Only header data

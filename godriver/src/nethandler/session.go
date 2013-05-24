@@ -27,11 +27,14 @@ type IVBSSession struct {
 	SendCh chan []byte
 	ResponseCh chan *ivbs.Packet
 	QuitCh chan bool
+	Quit bool
 	NbdFile *os.File
 	NbdPath string
 	Fd [2]int
+	Mapping map[uint32]RequestMapping
 }
 
+/*
 type IVBSResponse struct {
 	packet *ivbs.Packet
 	data []byte
@@ -41,6 +44,11 @@ type IVBSRequest struct {
 	Sequence uint32
 	Handle [8]byte
 	Type uint32
+}
+*/
+type RequestMapping struct {
+	Packet *ivbs.Packet
+	Request *nbd.Request
 }
 
 func (session *IVBSSession) GetSequence() uint32 {
@@ -79,9 +87,11 @@ func SetupConnection(image, user, passwd, nbd_path string) (IVBSSession, error) 
 							make(chan []byte),
 							make(chan *ivbs.Packet, MAX_CH_BUFF),
 							make(chan bool),
+							false,
 							nil,
 							nbd_path,
 							[2]int{0, 0},
+							make(map[uint32] RequestMapping),
 	}
 	
 	go IOHandler(&session)
@@ -153,6 +163,14 @@ func SetupConnection(image, user, passwd, nbd_path string) (IVBSSession, error) 
 	
 	// Start serving network data and return the session
 	go client(&session)
+	go server(&session)
+
+	tmp_file, err := os.OpenFile(session.NbdPath, os.O_RDONLY, 0666)
+	if err != nil {
+		fmt.Println("Could not open device for testing.")
+	}
+	fmt.Println("In server: After open")
+	tmp_file.Close()
 	
 	return session, nil
 	
