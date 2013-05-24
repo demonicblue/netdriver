@@ -2,11 +2,47 @@ package nethandler
 
 import (
 	"fmt"
-	"time"
+	"nbd"
+	"syscall"
+	"ivbs"
+	//"os"
 )
 
+func passPacket(session *IVBSSession, response *ivbs.Packet) {
+
+	var reply *nbd.Reply
+
+	requestRef := session.Mapping[response.Sequence].Request
+	fd := session.Fd[1]
+
+	switch response.Op {
+	case ivbs.OP_READ:
+		reply = nbd.NewReply(requestRef, response.DataSlice[ivbs.LEN_HEADER_PACKET:])
+		fmt.Println("Sending read to nbd")
+	case ivbs.OP_WRITE:
+		reply = nbd.NewReply(requestRef, nil)
+		fmt.Println("Sending write to nbd")
+	default:
+	}
+
+	syscall.Write(fd, reply.Byteslice())
+}
+
+func serverListener(session *IVBSSession) {
+	//var packet *ivbs.Packet
+		for {
+		select {
+		case response, chOk := <-session.ResponseCh:
+			if !chOk {
+				return
+			}
+			passPacket(session, response)
+		}
+	}
+}
+
 // Server thread
-func server(session IVBSSession) {
+func server(session *IVBSSession) {
 	/*request := new(nbd.Nbd_request)
 	reply := new(nbd.Nbd_reply)
 	_ = reply
@@ -14,20 +50,49 @@ func server(session IVBSSession) {
 	
 	//nbd_fd := session.NbdFile.Fd()
 	//defer nbd_file.Close()
-	
-	
-	
-	time.Sleep(500*time.Millisecond)
-	fmt.Println("In server: After sleep")
-	/*tmp_file, err := os.OpenFile(nbd_path, os.O_RDONLY, 0666)
+
+	/*tmp_file, err := os.OpenFile(session.NbdPath, os.O_RDONLY, 0666)
 	if err != nil {
 		fmt.Println("Could not open device for testing.")
 	}
 	fmt.Println("In server: After open")
 	tmp_file.Close()*/
+
+	go serverListener(session)
+
+	fd := session.Fd[1]
 	
 	fmt.Println("Starting server loop..")
-	for {
+	for !session.Quit {
+		b := make([]byte, nbd.LEN_REQUEST_HEADER)
+		var packet *ivbs.Packet
+
+		_, _ = syscall.Read(fd, b)
+		request := nbd.NewRequest(b)
+
+		switch request.Cmd {
+		case nbd.NBD_CMD_READ:
+			packet = ivbs.NewRead(session, request.From, uint64(request.Len))
+			session.Conn.Write(packet.Byteslice())
+			fmt.Println("Sent read")
+		case nbd.NBD_CMD_WRITE:
+			if request.Len > 0 {
+				syscall.Read(fd, request.Data)
+			}
+			packet = ivbs.NewWrite(session, request.From, request.Len, request.Data)
+			session.Conn.Write(packet.Byteslice())
+			fmt.Println("Sent write")
+		default:
+			// Unknown
+			fmt.Println("Unknown nbd request")
+		}
+
+		// Save request for later reference
+		session.Mapping[packet.Sequence] = RequestMapping{packet, request}
+		//packet.Debug()
+
+
+
 		/*_, _ = syscall.Read(socket_fd, b)
 		//copy(reply.handle, request.handle)
 		
