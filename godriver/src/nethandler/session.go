@@ -7,40 +7,10 @@ import (
 	"fmt"
 	"nbd"
 	"syscall"
-	"time"
 )
 
 // 50 Mb size in bytes
 const DATASIZE = 1024*1024*50
-
-// Client thread
-func client(session *IVBSSession) {
-	
-	socket_fd := session.Fd[0]
-	nbd_fd := session.NbdFile.Fd()
-	
-	fmt.Println("Starting client")
-	if err:= nbd.CallUint64(nbd_fd, nbd.NBD_SET_SIZE, session.Size); err != nil {
-		fmt.Printf("Error setting size: %s", err)
-	}
-	if err:= nbd.Call2(nbd_fd, nbd.NBD_CLEAR_SOCK, 0); err != nil {
-		fmt.Printf("Error clearing socket: %s", err)
-	}
-	
-	if err := nbd.Call2(nbd_fd, nbd.NBD_SET_SOCK, socket_fd); err != nil {
-		fmt.Printf("Could not set socket: %s\n", err)
-	}
-	
-	if err := nbd.Call2(nbd_fd, nbd.NBD_DO_IT, 0); err != nil {
-		fmt.Printf("Error starting client: %s\n", err)
-	}
-	
-	fmt.Println("Disconnecting..")
-	
-	//nbd.Call(nbd_fd, nbd.NBD_CLEAR_QUE, 0)
-	//nbd.Call(nbd_fd, nbd.NBD_CLEAR_SOCK, 0)
-	
-}
 
 const firstIVBSProxy string = "10.46.1.128:11417"
 
@@ -57,11 +27,14 @@ type IVBSSession struct {
 	SendCh chan []byte
 	ResponseCh chan *ivbs.Packet
 	QuitCh chan bool
+	Quit bool
 	NbdFile *os.File
 	NbdPath string
 	Fd [2]int
+	Mapping map[uint32]RequestMapping
 }
 
+/*
 type IVBSResponse struct {
 	packet *ivbs.Packet
 	data []byte
@@ -71,6 +44,11 @@ type IVBSRequest struct {
 	Sequence uint32
 	Handle [8]byte
 	Type uint32
+}
+*/
+type RequestMapping struct {
+	Packet *ivbs.Packet
+	Request *nbd.Request
 }
 
 func (session *IVBSSession) GetSequence() uint32 {
@@ -85,79 +63,6 @@ func (session *IVBSSession) WriteSession(b []byte) {
 func parseGreeting(session *IVBSSession, packet *ivbs.Packet) {
 	copy(session.Id, packet.SessionId)
 
-}
-
-func IOHandler(session *IVBSSession) {
-	if session.Conn == nil {
-		//TODO Setup new connection
-	}
-	
-	// Sender - receives data on channel and writes to connection
-	/*go func(session IVBSSession) { //TODO Eliminate and refactor to server thread or improve
-		data := <- session.SendCh
-		session.Conn.Write(data)
-	}(session)*/
-	
-	
-	//var moreData []byte 	//TODO Make before loop to save resources?
-	quitIO := false
-	
-	
-	for !quitIO {
-		session.Conn.SetReadDeadline(time.Now().Add(10*time.Second)) // Make sure net.Read() doesn't block indefinetley
-
-		data := make([]byte, ivbs.LEN_HEADER_PACKET)// Header packets
-		_, err := session.Conn.Read(data)
-		
-		if nerr, ok := err.(net.Error); ok && nerr.Timeout() {
-			// Received timeout, carry one
-
-		} else if err != nil {
-			// Fatal, maybe reconnect?
-			fmt.Printf("Error: %s\n", err)
-			os.Exit(0)
-
-		} else {
-
-			fmt.Println("Got packet")
-
-			reply := ivbs.IvbsSliceToStruct(data)
-
-			if reply.DataLen > 0 {
-				// Read more data
-				reply.DataSlice = make([]byte, ivbs.LEN_HEADER_PACKET + reply.DataLen)
-				copy(reply.DataSlice, data)
-				session.Conn.Read(reply.DataSlice[ivbs.LEN_HEADER_PACKET:])
-
-			} else {
-				// Only header data
-				reply.DataSlice = make([]byte, ivbs.LEN_HEADER_PACKET)
-				copy(reply.DataSlice, data)
-
-			}
-
-			switch reply.Op { // TODO Maybe handle greetings with reconnects
-
-			case ivbs.OP_LIST_PROXIES:
-			case ivbs.OP_READ, ivbs.OP_WRITE:
-				session.ResponseCh <- reply
-			case ivbs.OP_KEEPALIVE:
-			case ivbs.OP_GREETING:
-				session.ResponseCh <- reply
-			case ivbs.OP_LOGIN, ivbs.OP_ATTACH_TO_IMAGE:
-				session.ResponseCh <- reply
-			default:
-				//Unknown
-			}
-		}
-		select {
-		case <- session.QuitCh:
-			quitIO = true
-			fmt.Println("Received quit")
-		default:
-		}
-	}
-	
 }
 
 func SetupConnection(image, user, passwd, nbd_path string) (IVBSSession, error) {
@@ -182,9 +87,11 @@ func SetupConnection(image, user, passwd, nbd_path string) (IVBSSession, error) 
 							make(chan []byte),
 							make(chan *ivbs.Packet, MAX_CH_BUFF),
 							make(chan bool),
+							false,
 							nil,
 							nbd_path,
 							[2]int{0, 0},
+							make(map[uint32] RequestMapping),
 	}
 	
 	go IOHandler(&session)
@@ -256,57 +163,18 @@ func SetupConnection(image, user, passwd, nbd_path string) (IVBSSession, error) 
 	
 	// Start serving network data and return the session
 	go client(&session)
-	
-	return session, nil
-	
-	
-}
+	go server(&session)
 
-// Server thread
-func server(session IVBSSession) {
-	/*request := new(nbd.Nbd_request)
-	reply := new(nbd.Nbd_reply)
-	_ = reply
-	_ = request*/
-	
-	//nbd_fd := session.NbdFile.Fd()
-	//defer nbd_file.Close()
-	
-	
-	
-	time.Sleep(500*time.Millisecond)
-	fmt.Println("In server: After sleep")
-	/*tmp_file, err := os.OpenFile(nbd_path, os.O_RDONLY, 0666)
+	tmp_file, err := os.OpenFile(session.NbdPath, os.O_RDONLY, 0666)
 	if err != nil {
 		fmt.Println("Could not open device for testing.")
 	}
 	fmt.Println("In server: After open")
-	tmp_file.Close()*/
+	tmp_file.Close()
 	
-	fmt.Println("Starting server loop..")
-	for {
-		/*_, _ = syscall.Read(socket_fd, b)
-		//copy(reply.handle, request.handle)
-		
-		len := ntohl(request.len)
-		_ = len
-		
-		break*/
-		/*select {
-		case <-quitCh:
-			fmt.Println("Trying to disconnect..")
-			return
-			nbd.Call2(nbd_fd, nbd.NBD_CLEAR_QUE, 0)
-			nbd.Call2(nbd_fd, nbd.NBD_DISCONNECT, 0)
-			nbd.Call2(nbd_fd, nbd.NBD_CLEAR_SOCK, 0)
-			syscall.Close(socket_fd)
-			fmt.Println("Tried disconnecting..")
-			return
-		default:
-			fmt.Println("Waiting..")
-			time.Sleep(1000 * time.Millisecond)
-		}*/
-	}
+	return session, nil
+	
+	
 }
 
 func disconnect(nbd_path string, nbd_fd uintptr) {
