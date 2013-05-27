@@ -13,7 +13,8 @@ func passPacket(session *IVBSSession, response *ivbs.Packet) {
 	var reply *nbd.Reply
 
 	requestRef := session.Mapping[response.Sequence].Request
-	fd := session.Fd[1]
+	//fd := session.Fd[1]
+	//fd := session.FdNetd.Fd()
 
 	switch response.Op {
 	case ivbs.OP_READ:
@@ -25,12 +26,13 @@ func passPacket(session *IVBSSession, response *ivbs.Packet) {
 	default:
 	}
 
-	syscall.Write(fd, reply.Byteslice())
+	//syscall.Write(fd, reply.Byteslice())
+	session.FdNetd.Write(reply.Byteslice())
 }
 
 func serverListener(session *IVBSSession) {
 	//var packet *ivbs.Packet
-		for {
+		for !session.Quit {
 		select {
 		case response, chOk := <-session.ResponseCh:
 			if !chOk {
@@ -40,6 +42,8 @@ func serverListener(session *IVBSSession) {
 		}
 	}
 }
+
+
 
 // Server thread
 func server(session *IVBSSession) {
@@ -57,17 +61,34 @@ func server(session *IVBSSession) {
 	}
 	fmt.Println("In server: After open")
 	tmp_file.Close()*/
+	defer session.FdNetd.Close()
+	defer syscall.Close(session.Fd[1])
+
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Println("Recovered in server", r)
+			session.Quit = true
+		}
+	}()
 
 	go serverListener(session)
 
-	fd := session.Fd[1]
+	//fd := session.Fd[1]
+	//syscall.SetNonblock(fd, true)
 	
 	fmt.Println("Starting server loop..")
 	for !session.Quit {
 		b := make([]byte, nbd.LEN_REQUEST_HEADER)
 		var packet *ivbs.Packet
 
-		_, _ = syscall.Read(fd, b)
+		//_, _ = syscall.Read(fd, b)
+		_, err := session.FdNetd.Read(b)
+		if err != nil {
+			fmt.Println("Error reading in server.go:server()")
+			session.Quit = true
+			continue
+		}
+
 		request := nbd.NewRequest(b)
 
 		switch request.Cmd {
@@ -77,9 +98,11 @@ func server(session *IVBSSession) {
 			fmt.Println("Sent read")
 		case nbd.NBD_CMD_WRITE:
 			if request.Len > 0 {
-				syscall.Read(fd, request.Data)
+				//syscall.Read(fd, request.Data)
+				session.FdNetd.Read(request.Data)
 			}
 			packet = ivbs.NewWrite(session, request.From, request.Len, request.Data)
+			packet.Debug()
 			session.Conn.Write(packet.Byteslice())
 			fmt.Println("Sent write")
 		default:
