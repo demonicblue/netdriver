@@ -44,7 +44,8 @@ func IOHandler(session *IVBSSession) {
 			reply := ivbs.IvbsSliceToStruct(data)
 
 			fmt.Printf("Got packet, op: %d\n", reply.Op)
-			reply.Debug()
+
+			//reply.Debug() // Prints out the whole package for debugging
 
 			if reply.DataLen > 0 {
 				// Read more data

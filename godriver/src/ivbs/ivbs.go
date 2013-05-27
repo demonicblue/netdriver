@@ -88,6 +88,7 @@ func (packet *Packet) Byteslice() (data []byte) {
 	binary.BigEndian.PutUint32(data[44:48], packet.Sequence)
 
 	if packet.DataLen > 0 {
+		fmt.Printf("Trying to write to a bytslice of length %d\n", len(data))
 		packet.DataPacket.Write( data[48:] )
 	}
 
