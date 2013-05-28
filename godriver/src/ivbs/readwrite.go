@@ -57,6 +57,7 @@ func NewWrite(sequence SequenceGetter, offset uint64, length uint32, b []byte) (
 	tmp := new(Write)
 	tmp.Offset = offset
 	tmp.Data = b
+	packet.DataPacket = tmp
 
 	return packet
 }

@@ -88,7 +88,9 @@ func (packet *Packet) Byteslice() (data []byte) {
 	binary.BigEndian.PutUint32(data[44:48], packet.Sequence)
 
 	if packet.DataLen > 0 {
+		//fmt.Printf("Trying to write to a bytslice of length %d...", len(data))
 		packet.DataPacket.Write( data[48:] )
+		//fmt.Println("Succeeded!")
 	}
 
 	packet.DataSlice = data
@@ -110,5 +112,7 @@ func IvbsSliceToStruct(data []byte) (*Packet) {
 }
 
 func (packet *Packet) Debug() {
-	fmt.Printf("%+v \n", packet)
+	//fmt.Printf("%+v \n", packet)
+	fmt.Printf("Packet[ Op: %d, Status: %d, DataLen: %d, Sequence: %d, DataPacket: %p ]\n\n",
+				packet.Op, packet.Status, packet.DataLen, packet.Sequence, packet.DataPacket)
 }
