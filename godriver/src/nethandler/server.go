@@ -115,8 +115,8 @@ func server(session *IVBSSession) {
 			packet.Debug()*/
 
 			//fmt.Printf("Trying to write %d to ivbs\n", packet.DataLen+ivbs.LEN_HEADER_PACKET)
-			n, _ := session.Conn.Write(packet.Byteslice())
-			_ = n
+			//n, _ := session.Conn.Write(packet.Byteslice())
+			//_ = n
 			//fmt.Printf("Wrote %d bytes\n", n)
 
 		case nbd.NBD_CMD_WRITE:
@@ -130,18 +130,25 @@ func server(session *IVBSSession) {
 			packet.Debug()*/
 
 			//fmt.Printf("Trying to write %d to ivbs\n", packet.DataLen+ivbs.LEN_HEADER_PACKET)
-			n, _ := session.Conn.Write(packet.Byteslice())
-			_ = n
+			//n, _ := session.Conn.Write(packet.Byteslice())
+			//_ = n
 			//fmt.Printf("Wrote %d bytes\n", n)
 
 		default:
 			// Unknown
 			fmt.Println("Unknown nbd request")
+			continue
 		}
 
 		// Save request for later reference
 		session.Mapping[packet.Sequence] = RequestMapping{packet, request}
 		//packet.Debug()
+
+		//fmt.Printf("Trying to write %d to ivbs\n", packet.DataLen+ivbs.LEN_HEADER_PACKET)
+		n, _ := session.Conn.Write(packet.Byteslice())
+		_ = n
+		//fmt.Printf("Wrote %d bytes\n", n)
+
 
 
 
