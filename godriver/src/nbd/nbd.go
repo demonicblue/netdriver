@@ -4,6 +4,7 @@ import (
 	"ioctl"
 	"os"
 	"encoding/binary"
+	"fmt"
 )
 
 // Values imported from nbd.h
@@ -61,7 +62,9 @@ func NewReply(request *Request, b []byte) (reply *Reply) {
 
 	reply.Magic = NBD_REPLY_MAGIC
 	copy(reply.Handle[:], request.Handle[:])
-	reply.Data = request.Data
+	if request.Cmd == NBD_CMD_READ {
+		reply.Data = b
+	}
 
 	return reply
 }
@@ -70,6 +73,10 @@ func NewRequest(b []byte) (request *Request) {
 	request = new(Request)
 
 	request.Magic = binary.BigEndian.Uint32(b[:4])
+	if request.Magic != NBD_REQUEST_MAGIC {
+		fmt.Println("Nbd: Wrong magic")
+		os.Exit(0)
+	}
 	request.Cmd = binary.BigEndian.Uint32(b[4:8])
 	copy(request.Handle[:], b[8:16])
 	request.From = binary.BigEndian.Uint64(b[16:24])
@@ -91,11 +98,21 @@ func (reply *Reply) Byteslice() (b []byte) {
 
 	binary.BigEndian.PutUint32(b[:4], reply.Magic)
 	binary.BigEndian.PutUint32(b[4:8], reply.Error)
-	copy(b[8:], reply.Handle[:])
+	copy(b[8:16], reply.Handle[:])
 
-	copy(b[16:], reply.Data)
+	if len(reply.Data) > 0 {
+		copy(b[16:], reply.Data)
+	}
 
 	return b
+}
+
+func (reply *Reply) Debug() {
+	fmt.Printf("NBD Reply[ Handle: %d, Error: %d, Data: %p ]\n", reply.Handle, reply.Error, reply.Data)
+}
+
+func (request *Request) Debug() {
+	fmt.Printf("NBD Request[ Handle: %d, Cmd: %d, From: %d, Len: %d ]\n", request.Handle, request.Cmd, request.From, request.Len)
 }
 
 // Send command to ioctl
