@@ -2,6 +2,7 @@ package ivbs
 
 import (
 	"encoding/binary"
+	"fmt"
 )
 
 const (
@@ -86,7 +87,13 @@ func (packet *Packet) Byteslice() (data []byte) {
 	binary.BigEndian.PutUint32(data[40:44], packet.DataLen)
 	binary.BigEndian.PutUint32(data[44:48], packet.Sequence)
 
-	packet.DataPacket.Write( data[48:] )
+	if packet.DataLen > 0 {
+		//fmt.Printf("Trying to write to a bytslice of length %d...", len(data))
+		packet.DataPacket.Write( data[48:] )
+		//fmt.Println("Succeeded!")
+	}
+
+	packet.DataSlice = data
 
 	return data
 }
@@ -102,4 +109,10 @@ func IvbsSliceToStruct(data []byte) (*Packet) {
 	packet.Sequence = binary.BigEndian.Uint32(data[44:48])
 	
 	return packet
+}
+
+func (packet *Packet) Debug() {
+	//fmt.Printf("%+v \n", packet)
+	fmt.Printf("Packet[ Op: %d, Status: %d, DataLen: %d, Sequence: %d, DataPacket: %p ]\n\n",
+				packet.Op, packet.Status, packet.DataLen, packet.Sequence, packet.DataPacket)
 }
