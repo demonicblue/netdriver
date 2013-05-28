@@ -17,7 +17,7 @@ const firstIVBSProxy string = "10.46.1.128:11417"
 const MAX_CH_BUFF = 20
 
 type IVBSSession struct {
-	Conn net.Conn
+	Conn *net.TCPConn
 	seqeuence uint32
 	Id []byte
 	Image string
@@ -32,6 +32,8 @@ type IVBSSession struct {
 	NbdPath string
 	Fd [2]int
 	Mapping map[uint32]RequestMapping
+	FdNbd *os.File
+	FdNetd *os.File
 }
 
 /*
@@ -66,10 +68,12 @@ func parseGreeting(session *IVBSSession, packet *ivbs.Packet) {
 }
 
 func SetupConnection(image, user, passwd, nbd_path string) (IVBSSession, error) {
+
 	fmt.Println("Setting up connection to "+firstIVBSProxy)
 	
 	// Set up connection to IVBS
-	conn, err := net.Dial("tcp", firstIVBSProxy)
+	addr, _ := net.ResolveTCPAddr("tcp", firstIVBSProxy)
+	conn, err := net.DialTCP( "tcp", nil, addr)
 	
 	if nerr, ok := err.(net.Error); ok {
 		fmt.Print(nerr.Error())
@@ -92,6 +96,7 @@ func SetupConnection(image, user, passwd, nbd_path string) (IVBSSession, error) 
 							nbd_path,
 							[2]int{0, 0},
 							make(map[uint32] RequestMapping),
+							nil, nil,
 	}
 	
 	go IOHandler(&session)
@@ -153,6 +158,9 @@ func SetupConnection(image, user, passwd, nbd_path string) (IVBSSession, error) 
 		fmt.Printf("socketpair() failed with error: %g", err)
 	}
 	session.Fd = fd
+
+	session.FdNetd = os.NewFile(uintptr(fd[1]), "|1")
+
 	
 	nbd_file, err := os.OpenFile(nbd_path, os.O_RDWR, 0666)
 	if(err != nil) {
@@ -169,7 +177,6 @@ func SetupConnection(image, user, passwd, nbd_path string) (IVBSSession, error) 
 	if err != nil {
 		fmt.Println("Could not open device for testing.")
 	}
-	fmt.Println("In server: After open")
 	tmp_file.Close()
 	
 	return session, nil

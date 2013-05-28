@@ -3,11 +3,16 @@ package nethandler
 import (
 	"fmt"
 	"nbd"
+	"syscall"
 )
 
 // Client thread
 func client(session *IVBSSession) {
 	
+	// Close all files before quitting
+	defer session.NbdFile.Close()
+	defer syscall.Close(session.Fd[0])
+
 	socket_fd := session.Fd[0]
 	nbd_fd := session.NbdFile.Fd()
 	
