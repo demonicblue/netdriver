@@ -1,0 +1,14 @@
+{
+    "Mounted": [
+        {
+            "NbdDevice": "/dev/nbd0",
+            "ImageName": "exjobb-test"
+        }
+    ],
+    "User": [
+        {
+            "Username": "exjobb",
+            "Password": "chalmers"
+        }
+    ]
+}
