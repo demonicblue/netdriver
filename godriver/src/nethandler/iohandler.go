@@ -29,10 +29,12 @@ func IOHandler(session *IVBSSession) {
 		session.Conn.SetReadDeadline(time.Now().Add(10*time.Second)) // Make sure net.Read() doesn't block indefinetley
 
 		data := make([]byte, ivbs.LEN_HEADER_PACKET)// Header packets
-		_, err := session.Conn.Read(data)
+		//_, err := session.Conn.Read(data)
+		data, err := ReadBytesliceFromConn(session.Conn, ivbs.LEN_HEADER_PACKET, data)
 		
 		if nerr, ok := err.(net.Error); ok && nerr.Timeout() {
 			// Received timeout, carry one
+			fmt.Println("Received timeout!")
 
 		} else if err != nil {
 			// Fatal, maybe reconnect?
@@ -43,16 +45,20 @@ func IOHandler(session *IVBSSession) {
 
 			reply := ivbs.IvbsSliceToStruct(data)
 
-			fmt.Printf("Got packet, op: %d\n", reply.Op)
-
-			//reply.Debug() // Prints out the whole package for debugging
+			/*//fmt.Printf("Got packet, op: %d\n", reply.Op)
+			fmt.Print("Received: ")
+			reply.Debug() // Prints out the whole package for debugging*/
 
 			if reply.DataLen > 0 {
 				// Read more data
 				reply.DataSlice = make([]byte, ivbs.LEN_HEADER_PACKET + reply.DataLen)
 				copy(reply.DataSlice, data)
-				n, _ := session.Conn.Read(reply.DataSlice[ivbs.LEN_HEADER_PACKET:])
-				fmt.Printf("Read %d bytes of extra data from ivbs.\n", n)
+
+				/*n, _ := session.Conn.Read(reply.DataSlice[ivbs.LEN_HEADER_PACKET:])
+				fmt.Printf("Read %d bytes of extra data from ivbs.\n", n)*/
+				
+				ReadBytesliceFromConn(session.Conn, int(reply.DataLen), reply.DataSlice[ivbs.LEN_HEADER_PACKET:])
+
 
 			} else {
 				// Only header data
@@ -83,4 +89,16 @@ func IOHandler(session *IVBSSession) {
 		}
 	}
 	
+}
+
+func ReadBytesliceFromConn(c *net.TCPConn, l int, b []byte) ([]byte, error) {
+	var n, n2 int
+	var err error
+	for ; n < l; n += n2 {
+		n2, err = (*c).Read(b[n:l])
+		if err != nil {
+			break
+		}
+	}
+	return b[:n], err
 }
