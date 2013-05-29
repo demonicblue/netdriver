@@ -1,30 +1,41 @@
 package config
 
 import (
-	"io/ioutil"
 	"fmt"
 	"httpserver"
 	"encoding/json"
 	"nethandler"
+	"io/ioutil"
+	"path/filepath"
+	"os"
+	"strings"
+
 )
 
-var configFile = "/home/alexander/netdriver/godriver/src/config/config.txt"
 /*
  * Reads a configfile that needs to be specified in the variable above.
  * Then mounts the specified images to their corresponding device.
  */
 func ReadFile(){
 	m := httpserver.ConfigStruct{}
-	b, err := ioutil.ReadFile(configFile)
+	
+	filepath.Walk(".", func(path string, info os.FileInfo, err error) error {
+        if strings.Contains(path, "config.txt"){
+        	bs, err := ioutil.ReadFile(path)
+		    
+		    if err != nil {
+		        return nil
+		    }
+		   
+		    fmt.Println("config.txt found, will begin setup...")
+		    str := string(bs)
+		    fmt.Println(str)
 
-	if err != nil {
-		fmt.Println("Error: ", err)
-		return
-	}
+			_ = json.Unmarshal(bs, &m)
+        }
+        return nil
+    })
 
-	_ = json.Unmarshal(b, &m)
-
-	fmt.Println("config.txt found, will begin setup...")
 
 	for key, value := range m.Mounted {
 		temp := m.User[key]
@@ -32,10 +43,10 @@ func ReadFile(){
 
 		httpserver.AddToMountedList(value.NbdDevice, value.ImageName)
 		
-		httpserver.LinkedLogins[len(httpserver.LinkedLogins)+1], err = nethandler.SetupConnection(value.ImageName, temp.Username, temp.Password, value.NbdDevice)
-		if err != nil {
-			fmt.Println("Error: %g", err)
-		}
+		httpserver.LinkedLogins[len(httpserver.LinkedLogins)+1], _ = nethandler.SetupConnection(value.ImageName, temp.Username, temp.Password, value.NbdDevice)
+		//if err != nil {
+		//	//fmt.Println("Error: %g", err)
+		//}
 	}
 	fmt.Println("Setup complete!")
 }

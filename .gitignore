@@ -5,3 +5,5 @@ Thumbs.db
 # binary files
 /godriver/pkg/*
 /godriver/bin/*
+
+/godriver/src/config/config.txt
