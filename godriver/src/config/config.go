@@ -12,7 +12,7 @@ import (
 )
 
 /*
- * Reads a configfile that needs to be specified in the variable above.
+ * Reads a configfile that needs to be in the same directory as the binary.
  * Then mounts the specified images to their corresponding device.
  */
 func ReadFile(){
@@ -20,6 +20,7 @@ func ReadFile(){
 	
 	pid := os.Getpid()
 	link, _ := os.Readlink("/proc/"+strconv.Itoa(pid)+"/exe")
+	
 	dir := filepath.Dir(link) 
     dir = strings.Replace(dir, "\\", "/", -1) 
 
