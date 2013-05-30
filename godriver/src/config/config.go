@@ -46,7 +46,7 @@ func ReadFile(){
 
 	for key, value := range m.Mounted {
 		temp := m.User[key]
-		fmt.Println("Mounting", value.ImageName, "for user", temp.Username, "with password", temp.Password, "to device", value.NbdDevice+".")
+		fmt.Println("Mounting", value.ImageName, "for user", temp.Username, "to device", value.NbdDevice+".")
 
 		httpserver.AddToMountedList(value.NbdDevice, value.ImageName)
 		

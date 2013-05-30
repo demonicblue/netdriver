@@ -138,7 +138,7 @@ func HttpRootHandler(w http.ResponseWriter, r *http.Request) {
 						}
 
 						AddToMountedList(cmd.Device, cmd.Image)
-						fmt.Fprintf(w, "Successfully mounted "+cmd.Image+" to "+cmd.Device+"\n"+cmd.User+" "+cmd.Pass+"\n")
+						fmt.Fprintf(w, "Successfully mounted "+cmd.Image+" to "+cmd.Device+"\n")
 						return
 					}
 				}
