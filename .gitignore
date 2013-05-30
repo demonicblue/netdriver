@@ -7,4 +7,4 @@ Thumbs.db
 /godriver/bin/*
 
 # config file
-/godriver/src/config/config.txt
+/godriver/bin/config.txt
