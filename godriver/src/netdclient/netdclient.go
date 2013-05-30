@@ -85,7 +85,7 @@ func sendJSONRequest(cmd string) *http.Response{
  * and sends the request to the HTTP-server for IVBS-Netdriver.
  */
 func main(){
-	fmt.Println("Netdriver-Client started!")
+	fmt.Println("Netdriver-Client started!\nNeed any help? Type help for available commands.")
 
 	flag.StringVar(&server, "c", "localhost:8080", "IP-address to HTTP-server")
 	flag.Parse()
@@ -119,13 +119,13 @@ func main(){
 
 			case "help":
 				fmt.Println("\nCommands available:")
-				fmt.Println("check \t Checks the status of the HTTP-server")
-				fmt.Println("disc \t Disconnects the HTTP-server. (Shutdown)")
-				fmt.Println("exit \t Exits the Netdriver-Client.")
-				fmt.Println("lista \t Lists all AVAIABLE NBD-devices.")
-				fmt.Println("listm \t Lists all MOUNTED NBD-devices.")
-				fmt.Println("mount \t Mounts a NBD-device to specific image.")
-				fmt.Println("unmount\t Unmounts the NBD-device specified.")
+				fmt.Println("check\t\tChecks the status of the HTTP-server")
+				fmt.Println("disc\t\tDisconnects the HTTP-server. (Shutdown)")
+				fmt.Println("exit\t\tExits the Netdriver-Client.")
+				fmt.Println("lista\t\tLists all AVAIABLE NBD-devices.")
+				fmt.Println("listm\t\tLists all MOUNTED NBD-devices.")
+				fmt.Println("mount\t\tMounts a NBD-device to specific image.")
+				fmt.Println("unmount\t\tUnmounts the NBD-device specified.")
 				fmt.Println("------------------------------------------------")
 				fmt.Println("-------------------SHORTCUTS--------------------")
 				fmt.Println("------------------------------------------------")
