@@ -5,11 +5,10 @@ import (
 	"httpserver"
 	"encoding/json"
 	"nethandler"
-	"io/ioutil"
-	"path/filepath"
 	"os"
+	"strconv"
+	"path/filepath"
 	"strings"
-
 )
 
 /*
@@ -19,34 +18,41 @@ import (
 func ReadFile(){
 	m := httpserver.ConfigStruct{}
 	
-	filepath.Walk(".", func(path string, info os.FileInfo, err error) error {
-        if strings.Contains(path, "config.txt"){
-        	bs, err := ioutil.ReadFile(path)
+	pid := os.Getpid()
+	link, _ := os.Readlink("/proc/"+strconv.Itoa(pid)+"/exe")
+	dir := filepath.Dir(link) 
+    dir = strings.Replace(dir, "\\", "/", -1) 
+
+	bs, err := os.Open(dir+"/config.txt")
 		    
-		    if err != nil {
-		        return nil
-		    }
-		   
-		    fmt.Println("config.txt found, will begin setup...")
-		    str := string(bs)
-		    fmt.Println(str)
+    if err != nil {
+   		fmt.Println("config.txt was not found!")
+        return
+    }
+    
+    fmt.Println("config.txt found, will begin setup...")
 
-			_ = json.Unmarshal(bs, &m)
-        }
-        return nil
-    })
+    stat, err := bs.Stat()
 
+    if err != nil {
+    	fmt.Println(err)
+    	return
+    }
+
+    b := make([]byte, stat.Size())
+    bs.Read(b)
+	_ = json.Unmarshal(b, &m)
 
 	for key, value := range m.Mounted {
 		temp := m.User[key]
-		fmt.Println("Mounting", value.ImageName, "for user", temp.Username, "with password", temp.Password, "to device", value.NbdDevice,".")
+		fmt.Println("Mounting", value.ImageName, "for user", temp.Username, "with password", temp.Password, "to device", value.NbdDevice+".")
 
 		httpserver.AddToMountedList(value.NbdDevice, value.ImageName)
 		
 		httpserver.LinkedLogins[len(httpserver.LinkedLogins)+1], _ = nethandler.SetupConnection(value.ImageName, temp.Username, temp.Password, value.NbdDevice)
-		//if err != nil {
-		//	//fmt.Println("Error: %g", err)
-		//}
+		if err != nil {
+			fmt.Println("Error: %g", err)
+		}
 	}
 	fmt.Println("Setup complete!")
 }
