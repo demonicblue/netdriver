@@ -7,9 +7,9 @@ import (
 )
 
 type Login struct {
-    Name string
-    Password string
-    PasswordHash string
+	Name         string
+	Password     string
+	PasswordHash string
 }
 
 func (login *Login) Write(b []byte) (n int) {
@@ -27,7 +27,7 @@ func (login *Login) Write(b []byte) (n int) {
 
 /*
 *	Create new login packet with all values set, ready for transmission.
-*/
+ */
 func NewLogin(sequence SequenceGetter, name, password string) (packet *Packet) {
 	packet = NewPacket()
 
@@ -45,11 +45,11 @@ func NewLogin(sequence SequenceGetter, name, password string) (packet *Packet) {
 	return packet
 }
 
-func LoginSliceToStruct(data []byte) (*Login) {
+func LoginSliceToStruct(data []byte) *Login {
 	packet := new(Login)
-	
+
 	packet.Name = string(data[:LEN_USERNAME])
-	packet.PasswordHash = string(data[LEN_USERNAME:LEN_USERNAME+LEN_PASSWORD_HASH])
-	
+	packet.PasswordHash = string(data[LEN_USERNAME : LEN_USERNAME+LEN_PASSWORD_HASH])
+
 	return packet
 }

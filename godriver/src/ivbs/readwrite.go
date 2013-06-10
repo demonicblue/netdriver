@@ -10,8 +10,8 @@ type Read struct {
 	Data    []byte //<- ivbs->client
 }
 type Write struct {
-	Offset  uint64 //<- client->ivbs
-	Data    []byte //<- client->ivbs
+	Offset uint64 //<- client->ivbs
+	Data   []byte //<- client->ivbs
 }
 
 func (read *Read) Write(b []byte) (n int) {
@@ -42,7 +42,7 @@ func (write *Write) Write(b []byte) (n int) {
 	binary.BigEndian.PutUint64(b[:8], write.Offset)
 	n += copy(b[8:], write.Data)
 
-	return n+8
+	return n + 8
 }
 
 func NewWrite(sequence SequenceGetter, offset uint64, length uint32, b []byte) (packet *Packet) {
@@ -61,4 +61,3 @@ func NewWrite(sequence SequenceGetter, offset uint64, length uint32, b []byte) (
 
 	return packet
 }
-
