@@ -137,8 +137,9 @@ func HttpRootHandler(w http.ResponseWriter, r *http.Request) {
 
 					LinkedLogins[len(LinkedLogins)+1], err = nethandler.SetupConnection(cmd.Image, cmd.User, cmd.Pass, cmd.Device)
 					if err != nil {
-						fmt.Println("Error: ", err)
-						break
+						fmt.Fprintf(w, "Error: ", err)
+						fmt.Fprintf(w, "\n")
+						return
 					}
 
 					AddToMountedList(cmd.Device, cmd.Image)
