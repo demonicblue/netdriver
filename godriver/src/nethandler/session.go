@@ -1,55 +1,43 @@
 package nethandler
 
 import (
-	"net"
-	"ivbs"
-	"os"
 	"fmt"
+	"ivbs"
 	"nbd"
+	"net"
+	"os"
 	"syscall"
 )
 
 // 50 Mb size in bytes
-const DATASIZE = 1024*1024*50
+const DATASIZE = 1024 * 1024 * 50
 
 const firstIVBSProxy string = "10.46.1.128:11417"
 
 const MAX_CH_BUFF = 20
 
 type IVBSSession struct {
-	Conn *net.TCPConn
-	seqeuence uint32
-	Id []byte
-	Image string
-	Size uint64
-	Username string
-	Passwd string
-	SendCh chan []byte
+	Conn       *net.TCPConn
+	seqeuence  uint32
+	Id         []byte
+	Image      string
+	Size       uint64
+	Username   string
+	Passwd     string
+	SendCh     chan []byte
 	ResponseCh chan *ivbs.Packet
-	QuitCh chan bool
-	Quit bool
-	NbdFile *os.File
-	NbdPath string
-	Fd [2]int
-	Mapping map[uint32]RequestMapping
-	FdNbd *os.File
-	FdNetd *os.File
+	QuitCh     chan bool
+	Quit       bool
+	NbdFile    *os.File
+	NbdPath    string
+	Fd         [2]int
+	Mapping    map[uint32]RequestMapping
+	FdNbd      *os.File
+	FdNetd     *os.File
 }
 
-/*
-type IVBSResponse struct {
-	packet *ivbs.Packet
-	data []byte
-}
-
-type IVBSRequest struct {
-	Sequence uint32
-	Handle [8]byte
-	Type uint32
-}
-*/
 type RequestMapping struct {
-	Packet *ivbs.Packet
+	Packet  *ivbs.Packet
 	Request *nbd.Request
 }
 
@@ -69,12 +57,12 @@ func parseGreeting(session *IVBSSession, packet *ivbs.Packet) {
 
 func SetupConnection(image, user, passwd, nbd_path string) (IVBSSession, error) {
 
-	fmt.Println("Setting up connection to "+firstIVBSProxy)
-	
+	fmt.Println("Setting up connection to " + firstIVBSProxy)
+
 	// Set up connection to IVBS
 	addr, _ := net.ResolveTCPAddr("tcp", firstIVBSProxy)
-	conn, err := net.DialTCP( "tcp", nil, addr)
-	
+	conn, err := net.DialTCP("tcp", nil, addr)
+
 	if nerr, ok := err.(net.Error); ok {
 		fmt.Print(nerr.Error())
 		return IVBSSession{}, err
@@ -82,32 +70,32 @@ func SetupConnection(image, user, passwd, nbd_path string) (IVBSSession, error) 
 		fmt.Printf("Connection failed: %g\n", err)
 		return IVBSSession{}, err
 	}
-	
+
 	session := IVBSSession{
-							conn,
-							0,
-							make([]byte, ivbs.LEN_SESSIONID),
-							image, 0, user, passwd,
-							make(chan []byte),
-							make(chan *ivbs.Packet, MAX_CH_BUFF),
-							make(chan bool),
-							false,
-							nil,
-							nbd_path,
-							[2]int{0, 0},
-							make(map[uint32] RequestMapping),
-							nil, nil,
+		conn,
+		0,
+		make([]byte, ivbs.LEN_SESSIONID),
+		image, 0, user, passwd,
+		make(chan []byte),
+		make(chan *ivbs.Packet, MAX_CH_BUFF),
+		make(chan bool),
+		false,
+		nil,
+		nbd_path,
+		[2]int{0, 0},
+		make(map[uint32]RequestMapping),
+		nil, nil,
 	}
-	
+
 	go IOHandler(&session)
-	
-	ivbs_reply :=<- session.ResponseCh
-	
+
+	ivbs_reply := <-session.ResponseCh
+
 	if ivbs_reply.Op != ivbs.OP_GREETING {
 		fmt.Println("Error, received: %d", ivbs_reply.Op)
 		//return
 	}
-	
+
 	parseGreeting(&session, ivbs_reply)
 
 	// Create login packet
@@ -121,10 +109,8 @@ func SetupConnection(image, user, passwd, nbd_path string) (IVBSSession, error) 
 	}
 
 	// Get reply
-	ivbs_reply =<- session.ResponseCh // TODO Make sure reply is OK
-	
-	//fmt.Printf("Response seqeuence: %d, Op: %d, status: %d\n", ivbs_reply.Sequence, ivbs_reply.Op, ivbs_reply.Status)
-	
+	ivbs_reply = <-session.ResponseCh // TODO Make sure reply is OK
+
 	if ivbs_reply.Op != ivbs.OP_LOGIN || ivbs_reply.Status != ivbs.STATUS_OK {
 		os.Exit(0)
 	}
@@ -140,48 +126,45 @@ func SetupConnection(image, user, passwd, nbd_path string) (IVBSSession, error) 
 		fmt.Printf("Wrote %d bytes attach packet without error\n", n)
 	}
 
-	ivbs_reply =<- session.ResponseCh
+	ivbs_reply = <-session.ResponseCh // Wait for reply
 
 	if ivbs_reply.Op != ivbs.OP_ATTACH_TO_IMAGE || ivbs_reply.Status != ivbs.STATUS_OK {
 		fmt.Printf("Received error in attach packet. OP: %d, Status: %d\n", ivbs_reply.Op, ivbs_reply.Status)
 		os.Exit(0)
 	}
 
-	//TODO Save image size
 	attach := ivbs.AttachFromSlice(ivbs_reply)
 	session.Size = attach.Size
+
 	fmt.Printf("Image size: %d byte, %d MB\n", session.Size, session.Size/1024/1024)
 
-	
 	fd, err := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_STREAM, 0) // Inter-process, client-server communication
-	if(err != nil) {
+	if err != nil {
 		fmt.Printf("socketpair() failed with error: %g", err)
 	}
 	session.Fd = fd
-
 	session.FdNetd = os.NewFile(uintptr(fd[1]), "|1")
 
-	
 	nbd_file, err := os.OpenFile(nbd_path, os.O_RDWR, 0666)
-	if(err != nil) {
+	if err != nil {
 		fmt.Printf("Tried opening %s with error: %g\nExiting..\n", nbd_path, err)
 		os.Exit(0)
 	}
 	session.NbdFile = nbd_file
-	
+
 	// Start serving network data and return the session
 	go client(&session)
 	go server(&session)
 
+	// Opening the device and forcing update of partition table
 	tmp_file, err := os.OpenFile(session.NbdPath, os.O_RDONLY, 0666)
 	if err != nil {
 		fmt.Println("Could not open device for testing.")
 	}
 	tmp_file.Close()
-	
+
 	return session, nil
-	
-	
+
 }
 
 func disconnect(nbd_path string, nbd_fd uintptr) {

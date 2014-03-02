@@ -5,8 +5,8 @@ import (
 )
 
 type AttachToImage struct {
-	Name string
-	Size uint64
+	Name     string
+	Size     uint64
 	ReadOnly bool
 }
 
@@ -37,7 +37,7 @@ func AttachFromSlice(packet *Packet) (attach *AttachToImage) {
 	b := packet.DataSlice[LEN_HEADER_PACKET:]
 
 	attach.Name = string(b[:LEN_IMAGENAME])
-	attach.Size = binary.BigEndian.Uint64(b[LEN_IMAGENAME:LEN_IMAGENAME+8])
+	attach.Size = binary.BigEndian.Uint64(b[LEN_IMAGENAME : LEN_IMAGENAME+8])
 
 	return attach
 }

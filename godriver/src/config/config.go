@@ -1,38 +1,56 @@
 package config
 
 import (
-	"io/ioutil"
+	"encoding/json"
 	"fmt"
 	"httpserver"
-	"encoding/json"
 	"nethandler"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
 )
 
-var configFile = "/home/alexander/netdriver/godriver/src/config/config.txt"
 /*
- * Reads a configfile that needs to be specified in the variable above.
+ * Reads a config-file that needs to be in the same directory as the ivbsnetd-binary.
  * Then mounts the specified images to their corresponding device.
  */
-func ReadFile(){
+func ReadFile() {
 	m := httpserver.ConfigStruct{}
-	b, err := ioutil.ReadFile(configFile)
+
+	pid := os.Getpid()
+	link, _ := os.Readlink("/proc/" + strconv.Itoa(pid) + "/exe")
+
+	dir := filepath.Dir(link)
+	dir = strings.Replace(dir, "\\", "/", -1)
+
+	bs, err := os.Open(dir + "/config.txt")
 
 	if err != nil {
-		fmt.Println("Error: ", err)
+		fmt.Println("config.txt was not found!")
 		return
 	}
 
-	_ = json.Unmarshal(b, &m)
-
 	fmt.Println("config.txt found, will begin setup...")
+
+	stat, err := bs.Stat()
+
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	b := make([]byte, stat.Size())
+	bs.Read(b)
+	_ = json.Unmarshal(b, &m)
 
 	for key, value := range m.Mounted {
 		temp := m.User[key]
-		fmt.Println("Mounting", value.ImageName, "for user", temp.Username, "with password", temp.Password, "to device", value.NbdDevice,".")
+		fmt.Println("Mounting", value.ImageName, "for user", temp.Username, "to device", value.NbdDevice+".")
 
 		httpserver.AddToMountedList(value.NbdDevice, value.ImageName)
-		
-		httpserver.LinkedLogins[len(httpserver.LinkedLogins)+1], err = nethandler.SetupConnection(value.ImageName, temp.Username, temp.Password, value.NbdDevice)
+
+		httpserver.LinkedLogins[len(httpserver.LinkedLogins)+1], _ = nethandler.SetupConnection(value.ImageName, temp.Username, temp.Password, value.NbdDevice)
 		if err != nil {
 			fmt.Println("Error: %g", err)
 		}

@@ -1,15 +1,15 @@
 package nbd
 
 import (
-	"ioctl"
-	"os"
 	"encoding/binary"
 	"fmt"
+	"ioctl"
+	"os"
 )
 
 // Values imported from nbd.h
 const (
-	NBD_SET_SOCK	= iota
+	NBD_SET_SOCK = iota
 	NBD_SET_BLKSIZE
 	NBD_SET_SIZE
 	NBD_DO_IT
@@ -23,7 +23,7 @@ const (
 )
 
 const (
-	NBD_CMD_READ	= iota
+	NBD_CMD_READ = iota
 	NBD_CMD_WRITE
 	NBD_CMD_DISC
 	NBD_CMD_FLUSH
@@ -31,34 +31,33 @@ const (
 )
 
 const (
-	NBD_REQUEST_MAGIC	= 0x25609513
-	NBD_REPLY_MAGIC		= 0x67446698
+	NBD_REQUEST_MAGIC = 0x25609513
+	NBD_REPLY_MAGIC   = 0x67446698
 )
 
 const (
-	LEN_REQUEST_HEADER	= 28
-	LEN_REPLY_HEADER	= 16
+	LEN_REQUEST_HEADER = 28
+	LEN_REPLY_HEADER   = 16
 )
 
 type Request struct {
-	Magic uint32
-	Cmd uint32
+	Magic  uint32
+	Cmd    uint32
 	Handle [8]byte
-	From uint64
-	Len uint32
-	Data []byte
+	From   uint64
+	Len    uint32
+	Data   []byte
 }
 
 type Reply struct {
-	Magic uint32
-	Error uint32
+	Magic  uint32
+	Error  uint32
 	Handle [8]byte
-	Data []byte
+	Data   []byte
 }
 
 func NewReply(request *Request, b []byte) (reply *Reply) {
-	// TODO Set magic
-	reply  = new(Reply)
+	reply = new(Reply)
 
 	reply.Magic = NBD_REPLY_MAGIC
 	copy(reply.Handle[:], request.Handle[:])
@@ -89,12 +88,8 @@ func NewRequest(b []byte) (request *Request) {
 	return request
 }
 
-func (request *Request) Parse() {
-	//ss
-}
-
 func (reply *Reply) Byteslice() (b []byte) {
-	b = make([]byte, LEN_REPLY_HEADER + len(reply.Data))
+	b = make([]byte, LEN_REPLY_HEADER+len(reply.Data))
 
 	binary.BigEndian.PutUint32(b[:4], reply.Magic)
 	binary.BigEndian.PutUint32(b[4:8], reply.Error)
@@ -116,15 +111,6 @@ func (request *Request) Debug() {
 }
 
 // Send command to ioctl
-func Call(fd, req, data int) error {
-	errno := ioctl.Call(uintptr(fd), int(ioctl.IO(0xab, int32(req))), uintptr(data))
-	if errno != 0 {
-		err := os.NewSyscallError("SYS_IOCTL", errno)
-		return err
-	}
-	return nil
-}
-
 func Call2(fd uintptr, req, data int) error {
 	errno := ioctl.Call(fd, int(ioctl.IO(0xab, int32(req))), uintptr(data))
 	if errno != 0 {
